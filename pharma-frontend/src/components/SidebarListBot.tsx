@@ -2,13 +2,18 @@ import React, { useState } from 'react'
 import { MessageSquare, Send, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { useListBotChat } from '../hooks/useListBotChat'
 
-const DOMAINS = ['Customer','Account','Marketing','Data']
+const DOMAINS = ['Customer/HCP','Account/Institutional','Marketing Campaign','Data/Analytics']
 
 export default function SidebarListBot() {
   const [open, setOpen] = useState(true)
   const [domain, setDomain] = useState('')
   const [input, setInput] = useState('')
-  const { messages, sendMessage, loading } = useListBotChat()
+  const { messages, sendMessage, clearMessages, loading } = useListBotChat()
+
+  const handleDomainChange = (newDomain: string) => {
+    setDomain(newDomain)
+    clearMessages() // Clear chat when domain changes
+  }
 
   const handleSend = async () => {
     if (!domain || !input.trim()) return
@@ -61,7 +66,7 @@ export default function SidebarListBot() {
               <div className="relative">
                 <select
                   value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
+                  onChange={(e) => handleDomainChange(e.target.value)}
                   className="w-full h-11 pl-4 pr-10 appearance-none rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-medium
                            focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 cursor-pointer"
                 >

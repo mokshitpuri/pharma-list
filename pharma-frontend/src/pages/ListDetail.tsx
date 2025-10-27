@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getListDetail, addItemsToList, deleteList } from '../api/listApi'
 import CSVUploadModal from '../components/CSVUploadModal'
+import Toast from '../components/Toast'
+import { getDomainDisplayName, migrateDomainName } from '../constants/domains'
 
 export default function ListDetail() {
   const { id } = useParams()
@@ -9,12 +11,17 @@ export default function ListDetail() {
   const [list, setList] = useState<any>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
   useEffect(() => {
     (async () => {
       if (!id) return
-      const res = await getListDetail(id)
-      setList(res)
+      try {
+        const res = await getListDetail(id)
+        setList(res)
+      } catch (error) {
+        console.error('Failed to fetch list:', error)
+      }
     })()
   }, [id])
 
@@ -22,9 +29,11 @@ export default function ListDetail() {
     if (!id) return
     try {
       await deleteList(id)
-      navigate('/dashboard')
+      setToast({ message: 'List deleted successfully', type: 'success' })
+      setTimeout(() => navigate('/dashboard'), 1500)
     } catch (error) {
       console.error('Failed to delete list:', error)
+      setToast({ message: 'Failed to delete list. Please try again.', type: 'error' })
     }
   }
 
@@ -36,6 +45,14 @@ export default function ListDetail() {
       </div>
     </div>
   )
+
+  // Map backend fields to display fields
+  const displayTitle = list.purpose || list.title || 'Untitled List'
+  const rawCategory = list.category || list.domain || 'General'
+  const migratedCategory = migrateDomainName(rawCategory)
+  const displayCategory = getDomainDisplayName(migratedCategory)
+  const displayOwner = list.requester_name || list.owner_name || 'Unknown'
+  const items = list.current_snapshot?.items || []
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -83,20 +100,20 @@ export default function ListDetail() {
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <div className="px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-sm tracking-wider uppercase font-semibold rounded-lg border border-primary/20">
-                  {list.domain}
+                  {displayCategory}
                 </div>
                 <div className="flex items-center gap-1.5 text-slate-500 text-sm font-medium">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  Version {list.version_number}
+                  {displayOwner}
                 </div>
               </div>
               <h1 className="text-4xl font-bold text-slate-800 mb-2 bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">
-                {list.title}
+                {displayTitle}
               </h1>
               <p className="text-slate-500 text-lg">
-                {list.current_snapshot.items.length} items in this pharmaceutical list
+                {items.length} items in this pharmaceutical list
               </p>
             </div>
           </div>
@@ -107,7 +124,7 @@ export default function ListDetail() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-slate-500 mb-1">Total Items</div>
-                  <div className="text-3xl font-bold text-slate-800">{list.current_snapshot.items.length}</div>
+                  <div className="text-3xl font-bold text-slate-800">{items.length}</div>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
                   <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,28 +136,12 @@ export default function ListDetail() {
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-medium text-slate-500 mb-1">Domain</div>
-                  <div className="text-xl font-bold text-slate-800">{list.domain}</div>
+                  <div className="text-sm font-medium text-slate-500 mb-1">Category</div>
+                  <div className="text-xl font-bold text-slate-800">{displayCategory}</div>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 flex items-center justify-center">
                   <svg className="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-slate-500 mb-1">Status</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-success shadow-lg shadow-success/50 animate-pulse"></div>
-                    <div className="text-xl font-bold text-success">Active</div>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-success/10 to-success/5 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
@@ -153,52 +154,80 @@ export default function ListDetail() {
           <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
             <h2 className="text-lg font-bold text-slate-800">List Items</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Institution</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Tier</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {list.current_snapshot.items.map((it: any, index: number) => (
-                  <tr 
-                    key={it.id} 
-                    className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-transparent transition-colors duration-200 group"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-primary mr-3 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="text-sm font-semibold text-slate-800">{it.name}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-3 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-full">
-                        {it.specialty}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{it.institution}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-3 py-1 text-xs font-bold text-primary bg-primary/10 rounded-full border border-primary/20">
-                        {it.tier}
-                      </span>
-                    </td>
+          
+          {items.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-700 mb-2">No items yet</h3>
+              <p className="text-slate-500 mb-4">Upload a CSV file to add items to this list</p>
+              <button 
+                onClick={() => setUploadOpen(true)}
+                className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 inline-flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload CSV
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Institution</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Tier</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((it: any, index: number) => (
+                    <tr 
+                      key={it.id || index} 
+                      className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-transparent transition-colors duration-200 group"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-primary mr-3 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                          <div className="text-sm font-semibold text-slate-800">{it.name || 'N/A'}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-3 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-full">
+                          {it.specialty || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{it.institution || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-3 py-1 text-xs font-bold text-primary bg-primary/10 rounded-full border border-primary/20">
+                          {it.tier || 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
 
       {uploadOpen && <CSVUploadModal onClose={() => setUploadOpen(false)} onAdd={async (rows: any) => {
-        await addItemsToList(id!, rows)
-        const updated = await getListDetail(id!)
-        setList(updated)
-        setUploadOpen(false)
+        try {
+          await addItemsToList(id!, rows)
+          const updated = await getListDetail(id!)
+          setList(updated)
+          setUploadOpen(false)
+          setToast({ message: 'Items added successfully!', type: 'success' })
+        } catch (error) {
+          console.error('Failed to add items:', error)
+          setToast({ message: 'Failed to add items. Please try again.', type: 'error' })
+        }
       }} />}
 
       {/* Delete Confirmation Modal */}
@@ -223,7 +252,7 @@ export default function ListDetail() {
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold text-slate-800 mb-2">Delete List</h3>
               <p className="text-slate-600">
-                Are you sure you want to delete <span className="font-semibold">"{list?.title}"</span>? This action cannot be undone.
+                Are you sure you want to delete <span className="font-semibold">"{displayTitle}"</span>? This action cannot be undone.
               </p>
             </div>
 
@@ -246,6 +275,15 @@ export default function ListDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )

@@ -1,15 +1,33 @@
-import axios from './axiosClient'
+/**
+ * ListBot API - Connected to FastAPI backend for conversational queries
+ */
 
-export const postListBotQuery = async (data: { domain: string; query: string; list_id?: string; chat_history?: any[] }) => {
-  // For now we call a mock endpoint (backend will replace)
+import axiosClient from './axiosClient'
+
+export interface ListBotQueryRequest {
+  domain?: string
+  question: string
+  list_id?: string
+  chat_history?: any[]
+}
+
+export interface ListBotQueryResponse {
+  answer: string
+  sources?: any[]
+}
+
+/**
+ * Send a query to the ListBot conversational interface
+ */
+export const postListBotQuery = async (data: ListBotQueryRequest): Promise<ListBotQueryResponse> => {
   try {
-    const res = await axios.post('/listbot/query', data)
-    return res.data
-  } catch (err) {
-    // Mock fallback
-    return {
-      answer: `Mock answer for domain ${data.domain}: we found no backend. (Replace with real API at /api/listbot/query)`,
-      sources: []
-    }
+    const response = await axiosClient.post('/query', {
+      question: data.question
+    })
+    return response.data
+  } catch (error) {
+    console.error('Error querying ListBot:', error)
+    throw error
   }
 }
+

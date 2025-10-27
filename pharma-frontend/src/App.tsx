@@ -1,6 +1,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
+import DomainView from './pages/DomainView'
 import ListDetail from './pages/ListDetail'
 import HistoryPage from './pages/HistoryPage'
 import SidebarListBot from './components/SidebarListBot'
@@ -25,6 +26,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/domain/:domainKey" element={<DomainView />} />
             <Route path="/list/:id" element={<ListDetail />} />
             <Route path="/list/:id/history" element={<HistoryPage />} />
           </Routes>

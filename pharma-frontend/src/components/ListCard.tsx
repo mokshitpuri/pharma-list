@@ -1,26 +1,35 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { getDomainDisplayName, migrateDomainName } from '../constants/domains'
 
 export default function ListCard({ list }: { list: any }) {
+  // Map backend fields to display fields
+  const rawDomain = list.category || list.domain || 'General'
+  const migratedDomain = migrateDomainName(rawDomain)
+  const displayDomain = getDomainDisplayName(migratedDomain)
+  const displayTitle = list.purpose || list.title || 'Untitled List'
+  const displayOwner = list.requester_name || list.owner_name || 'Unknown'
+  const displayDate = list.created_at || list.updated_at || new Date().toISOString()
+  
   return (
-    <div className="group relative overflow-hidden bg-white rounded-xl border border-slate-200 hover:border-primary/30 hover:shadow-xl transition-all duration-500 hover:-translate-y-1">
+    <div className="group relative overflow-hidden bg-white rounded-xl border border-slate-200 hover:border-primary/30 hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
       {/* Gradient accent on top */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
       
       {/* Background gradient effect */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
       
-      <div className="relative p-6 flex flex-col h-full">
+      <div className="relative p-6 flex flex-col flex-1">
         <div className="flex items-start justify-between mb-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-xs tracking-wider uppercase font-semibold rounded-lg border border-primary/20">
-              {list.domain}
+              {displayDomain}
             </div>
             <div className="flex items-center gap-1.5 text-slate-500 text-xs font-medium">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span>v{list.version_number}</span>
+              <span>{displayOwner}</span>
             </div>
           </div>
           <div className="relative">
@@ -31,10 +40,10 @@ export default function ListCard({ list }: { list: any }) {
         
         <div className="flex-1 mb-5">
           <h3 className="text-xl font-bold text-slate-800 mb-2 line-clamp-2 group-hover:text-primary transition-colors duration-300">
-            {list.title}
+            {displayTitle}
           </h3>
           <p className="text-sm text-slate-500 line-clamp-2">
-            Pharmaceutical data list for {list.domain.toLowerCase()} management
+            Requested by {displayOwner} • {list.requester_role || 'User'}
           </p>
         </div>
         

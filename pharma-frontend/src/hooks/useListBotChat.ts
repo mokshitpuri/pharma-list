@@ -9,7 +9,7 @@ export function useListBotChat() {
     setLoading(true)
     setMessages(prev => [...prev, { role: 'user', content: query }])
     try {
-      const res = await postListBotQuery({ domain, query, chat_history: messages })
+      const res = await postListBotQuery({ domain, question: query, chat_history: messages })
       setMessages(prev => [...prev, { role: 'assistant', content: res.answer }])
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: could not reach server (mock mode).'}])
@@ -18,5 +18,9 @@ export function useListBotChat() {
     }
   }
 
-  return { messages, sendMessage, loading }
+  const clearMessages = () => {
+    setMessages([])
+  }
+
+  return { messages, sendMessage, clearMessages, loading }
 }

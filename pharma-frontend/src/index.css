@@ -20,6 +20,10 @@
     animation: float 3s ease-in-out infinite;
   }
 
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+
   .bg-grid-pattern {
     background-image: 
       linear-gradient(to right, rgba(100, 116, 139, 0.05) 1px, transparent 1px),
@@ -65,6 +69,17 @@
   }
   50% {
     background-position: 100% 50%;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 

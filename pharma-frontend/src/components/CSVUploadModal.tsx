@@ -1,12 +1,102 @@
 import React, { useState } from 'react'
 import Papa from 'papaparse'
+import Toast from './Toast'
 
 export default function CSVUploadModal({ onClose, onAdd }: any) {
   const [rows, setRows] = useState<any[]>([])
   const [selected, setSelected] = useState<Record<number, boolean>>({})
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
+
+  const downloadSampleCSV = () => {
+    // Sample data with pharmaceutical professional details
+    const sampleData = [
+      {
+        id: 'DOC001',
+        name: 'Dr. Rajesh Kumar',
+        designation: 'Senior Consultant',
+        specialty: 'Cardiology',
+        institution: 'Apollo Hospital',
+        location: 'Delhi',
+        phone: '+91-9876543210',
+        email: 'rajesh.kumar@apollo.com',
+        tier: 'A',
+        remarks: 'Key opinion leader in interventional cardiology'
+      },
+      {
+        id: 'DOC002',
+        name: 'Dr. Priya Sharma',
+        designation: 'Head of Department',
+        specialty: 'Neurology',
+        institution: 'Fortis Healthcare',
+        location: 'Mumbai',
+        phone: '+91-9876543211',
+        email: 'priya.sharma@fortis.com',
+        tier: 'A',
+        remarks: 'Specializes in stroke management'
+      },
+      {
+        id: 'DOC003',
+        name: 'Dr. Amit Patel',
+        designation: 'Consultant',
+        specialty: 'Orthopedics',
+        institution: 'Max Hospital',
+        location: 'Bangalore',
+        phone: '+91-9876543212',
+        email: 'amit.patel@max.com',
+        tier: 'B',
+        remarks: 'Sports injury specialist'
+      },
+      {
+        id: 'DOC004',
+        name: 'Dr. Sneha Reddy',
+        designation: 'Associate Professor',
+        specialty: 'Oncology',
+        institution: 'AIIMS',
+        location: 'Delhi',
+        phone: '+91-9876543213',
+        email: 'sneha.reddy@aiims.edu',
+        tier: 'A',
+        remarks: 'Research focus on breast cancer'
+      },
+      {
+        id: 'DOC005',
+        name: 'Dr. Vikram Singh',
+        designation: 'Consultant',
+        specialty: 'Gastroenterology',
+        institution: 'Medanta',
+        location: 'Gurugram',
+        phone: '+91-9876543214',
+        email: 'vikram.singh@medanta.com',
+        tier: 'B',
+        remarks: 'Expert in liver diseases'
+      }
+    ]
+
+    // Convert to CSV using Papa Parse
+    const csv = Papa.unparse(sampleData)
+    
+    // Create blob and download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', 'sample_pharma_data.csv')
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const handleFile = (file: File | null) => {
     if (!file) return
+    const name = file.name.toLowerCase()
+    // Basic Excel guard: XLSX/XLS not supported client-side yet
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      // You can add SheetJS (xlsx) to support Excel files in the future.
+      // For now, show a toast notification and return.
+      setToast({ message: 'Excel files (.xls/.xlsx) are not supported yet. Please upload a CSV.', type: 'warning' });
+      return
+    }
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -83,6 +173,23 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
                   </div>
                 </div>
               </label>
+
+              {/* Sample Data Button */}
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={downloadSampleCSV}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-primary/30 bg-primary/5 text-primary font-medium hover:bg-primary/10 hover:border-primary/50 transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download Sample CSV
+                </button>
+                <p className="text-xs text-slate-500 mt-2">
+                  Not sure what format to use? Download our sample file with proper headers
+                </p>
+              </div>
             </div>
 
             {/* Table Preview */}
@@ -168,6 +275,15 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }
