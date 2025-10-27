@@ -1,15 +1,15 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { getDomainDisplayName, migrateDomainName } from '../constants/domains'
+import { getDomainDisplayName } from '../constants/domains'
+import type { ListSummary } from '../types'
 
-export default function ListCard({ list }: { list: any }) {
+export default function ListCard({ list }: { list: ListSummary }) {
   // Map backend fields to display fields
-  const rawDomain = list.category || list.domain || 'General'
-  const migratedDomain = migrateDomainName(rawDomain)
-  const displayDomain = getDomainDisplayName(migratedDomain)
-  const displayTitle = list.purpose || list.title || 'Untitled List'
-  const displayOwner = list.requester_name || list.owner_name || 'Unknown'
-  const displayDate = list.created_at || list.updated_at || new Date().toISOString()
+  const displayDomain = list.subdomain?.subdomain_name || 'Unknown Domain'
+  const displayTitle = list.request_purpose || 'Untitled List'
+  const displayOwner = list.requester_name || 'Unknown'
+  const displayDate = list.created_at || new Date().toISOString()
+  const displayStatus = list.status || 'pending'
   
   return (
     <div className="group relative overflow-hidden bg-white rounded-xl border border-slate-200 hover:border-primary/30 hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
@@ -33,8 +33,16 @@ export default function ListCard({ list }: { list: any }) {
             </div>
           </div>
           <div className="relative">
-            <div className="w-2.5 h-2.5 rounded-full bg-success shadow-lg shadow-success/50 animate-pulse"></div>
-            <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-success animate-ping opacity-75"></div>
+            <div className={`w-2.5 h-2.5 rounded-full shadow-lg ${
+              displayStatus === 'completed' ? 'bg-success shadow-success/50' :
+              displayStatus === 'in_progress' ? 'bg-blue-500 shadow-blue-500/50' :
+              'bg-yellow-500 shadow-yellow-500/50'
+            } animate-pulse`}></div>
+            <div className={`absolute inset-0 w-2.5 h-2.5 rounded-full ${
+              displayStatus === 'completed' ? 'bg-success' :
+              displayStatus === 'in_progress' ? 'bg-blue-500' :
+              'bg-yellow-500'
+            } animate-ping opacity-75`}></div>
           </div>
         </div>
         
@@ -43,13 +51,13 @@ export default function ListCard({ list }: { list: any }) {
             {displayTitle}
           </h3>
           <p className="text-sm text-slate-500 line-clamp-2">
-            Requested by {displayOwner} • {list.requester_role || 'User'}
+            Requested by {displayOwner} • {displayStatus}
           </p>
         </div>
         
         <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
           <Link 
-            to={`/list/${list.id}`}
+            to={`/list/${list.request_id}`}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-primary/90 text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 hover:scale-105"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +67,7 @@ export default function ListCard({ list }: { list: any }) {
             <span>View</span>
           </Link>
           <Link 
-            to={`/list/${list.id}/history`}
+            to={`/list/${list.request_id}/history`}
             className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-100 border border-slate-200 hover:border-slate-300 transition-all duration-300"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

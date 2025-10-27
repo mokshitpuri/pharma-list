@@ -1,46 +1,63 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLists, createList, addItemsToList } from '../api/listApi';
 import NewListModal from '../components/NewListModal';
 import Toast from '../components/Toast';
 import { DOMAIN_CONFIGS, migrateDomainName, type DomainKey } from '../constants/domains';
-
-interface List {
-  id: string;
-  requester_name: string;
-  requester_role: string;
-  purpose: string;
-  category: string;
-  created_at: string;
-  // For display compatibility
-  title?: string;
-  domain?: string;
-}
+import type { ListSummary } from '../types';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [lists, setLists] = useState<List[]>([]);
+  const [lists, setLists] = useState<ListSummary[]>([]);
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchLists = async () => {
-      try {
-        const res = await getLists();
-        setLists(res);
-      } catch (error) {
-        console.error('Failed to fetch lists:', error);
-      }
-    };
-    void fetchLists();
+  // Fetch lists function wrapped in useCallback
+  const fetchLists = useCallback(async () => {
+    try {
+      const res = await getLists();
+      setLists(res);
+    } catch (error) {
+      console.error('Failed to fetch lists:', error);
+    }
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    void fetchLists();
+  }, [fetchLists]);
+
+  // Auto-refresh polling every 15 seconds
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      void fetchLists();
+    }, 15000); // Poll every 15 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [fetchLists]);
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchLists();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
 
   // Calculate stats for each domain
   const getDomainStats = (domainKey: DomainKey) => {
-    const domainLists = lists.filter((list: List) => {
-      const migratedDomain = migrateDomainName(list.category);
-      return migratedDomain === domainKey;
+    const domainConfig = DOMAIN_CONFIGS.find(d => d.key === domainKey);
+    if (!domainConfig) return { count: 0, recentActivity: null };
+    
+    // Filter lists that belong to this domain via subdomain
+    const domainLists = lists.filter((list: any) => {
+      // Check if the list has subdomain data
+      if (list.subdomain && list.subdomain.domain_id === domainConfig.domainId) {
+        return true;
+      }
+      return false;
     });
+    
     return {
       count: domainLists.length,
       recentActivity: domainLists.length > 0 ? domainLists[0].created_at : null
@@ -59,34 +76,63 @@ const Dashboard = () => {
         return; // Keep modal open for user to import CSV
       }
 
-      // Map frontend fields to backend schema
-      const newList = await createList({
-        requester_name: 'Current User', // TODO: Get from auth context
-        requester_role: 'User',
-        purpose: title,
-        category: domain
-      });
+      // Get domain config to find domain_id
+      const domainConfig = DOMAIN_CONFIGS.find(d => d.key === domain);
+      if (!domainConfig) {
+        setToast({ message: 'Invalid domain selected.', type: 'error' });
+        return;
+      }
 
-      // Upload the imported rows to the new list
-      if (newList?.id) {
-        try {
-          await addItemsToList(newList.id, items, 'Current User');
-          // Successfully created list with items
-          const updatedLists = await getLists();
-          setLists(updatedLists);
-          setIsNewListModalOpen(false); // Close modal on success
-          setToast({ message: 'List created successfully!', type: 'success' });
-        } catch (err) {
-          console.error('Failed to upload imported items:', err);
-          setToast({ message: 'List created but failed to add items. Please try adding items manually.', type: 'warning' });
-          // Still refresh the list and close modal
-          const updatedLists = await getLists();
-          setLists(updatedLists);
-          setIsNewListModalOpen(false);
+      // For now, we'll need to fetch subdomains to get the subdomain_id
+      // The 'title' parameter actually contains the list type (subdomain name)
+      // We need to find the matching subdomain
+      try {
+        const { getSubdomains } = await import('../api/listApi');
+        const subdomains = await getSubdomains(domainConfig.domainId);
+        const matchingSubdomain = subdomains.find(s => s.subdomain_name === title);
+        
+        if (!matchingSubdomain) {
+          setToast({ message: `Subdomain "${title}" not found in database. Please contact administrator.`, type: 'error' });
+          return;
         }
-      } else {
-        setToast({ message: 'Failed to create list. Please try again.', type: 'error' });
-        setIsNewListModalOpen(false); // Close modal on failure
+
+        // Create the list with proper subdomain_id
+        const newList = await createList({
+          subdomain_id: matchingSubdomain.subdomain_id,
+          requester_name: 'Current User', // TODO: Get from auth context
+          request_purpose: `${title} - ${new Date().toLocaleDateString()}`,
+          status: 'In Progress'
+        });
+
+        // Upload the imported rows to the new list
+        if (newList?.request_id) {
+          try {
+            await addItemsToList(newList.request_id, items, 'Current User');
+            // Successfully created list with items
+            const updatedLists = await getLists();
+            setLists(updatedLists);
+            setIsNewListModalOpen(false); // Close modal on success
+            setToast({ message: 'List created successfully!', type: 'success' });
+          } catch (err) {
+            console.error('Failed to upload imported items:', err);
+            setToast({ message: 'List created but failed to add items. Please try adding items manually.', type: 'warning' });
+            // Still refresh the list and close modal
+            const updatedLists = await getLists();
+            setLists(updatedLists);
+            setIsNewListModalOpen(false);
+          }
+        } else {
+          setToast({ message: 'Failed to create list. Please try again.', type: 'error' });
+          setIsNewListModalOpen(false); // Close modal on failure
+        }
+      } catch (subdomainError) {
+        console.error('Failed to fetch subdomains:', subdomainError);
+        console.error('Subdomain error details:', {
+          message: subdomainError instanceof Error ? subdomainError.message : 'Unknown error',
+          response: (subdomainError as any)?.response?.data,
+          status: (subdomainError as any)?.response?.status
+        });
+        setToast({ message: 'Failed to fetch subdomain information. Please try again.', type: 'error' });
       }
     } catch (error) {
       console.error('Failed to create list:', error);
@@ -126,6 +172,22 @@ const Dashboard = () => {
             </div>
 
             <div className="flex items-center gap-6">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all duration-200 disabled:opacity-50"
+                title="Refresh dashboard"
+                type="button"
+              >
+                <svg 
+                  className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
               <div className="h-8 w-px bg-slate-200 hidden md:block" />
               <button
                 type="button"
@@ -162,15 +224,6 @@ const Dashboard = () => {
                 Select a domain to view and manage lists
               </p>
             </div>
-            <button className="px-6 py-3 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-              onClick={() => setIsNewListModalOpen(true)}
-              type="button"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              New List
-            </button>
           </div>
 
           {/* Stats Cards */}
@@ -186,7 +239,9 @@ const Dashboard = () => {
               <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-secondary/10 to-transparent rounded-bl-full"></div>
               <div className="relative">
                 <div className="text-sm font-medium text-slate-500 mb-1">Active Domains</div>
-                <div className="text-3xl font-bold text-slate-800">{new Set(lists.map(l => migrateDomainName(l.category))).size}</div>
+                <div className="text-3xl font-bold text-slate-800">
+                  {new Set(lists.filter(l => l.subdomain).map(l => l.subdomain!.domain_id)).size}
+                </div>
               </div>
             </div>
             <div className="relative overflow-hidden bg-white rounded-2xl p-5 border border-slate-200 hover:border-success/30 hover:shadow-lg transition-all duration-300 group">
@@ -271,14 +326,28 @@ const Dashboard = () => {
                   </div>
 
                   {/* View Button */}
-                  <button
-                    className="w-full px-4 py-3 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 group-hover:scale-105 flex items-center justify-center gap-2"
-                  >
-                    <span>View Lists</span>
-                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/domain/${encodeURIComponent(domain.key)}/history`)
+                      }}
+                      className="flex-1 px-4 py-3 bg-white border-2 border-primary text-primary font-semibold rounded-xl hover:bg-primary/5 transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>History</span>
+                    </button>
+                    <button
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 group-hover:scale-105 flex items-center justify-center gap-2"
+                    >
+                      <span>View Lists</span>
+                      <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getListDetail, addItemsToList, deleteList } from '../api/listApi'
 import CSVUploadModal from '../components/CSVUploadModal'
 import Toast from '../components/Toast'
 import { getDomainDisplayName, migrateDomainName } from '../constants/domains'
+import { downloadSampleCSV, getListTypeFromSubdomain } from '../utils/csvTemplates'
 
 export default function ListDetail() {
   const { id } = useParams()
@@ -12,18 +13,39 @@ export default function ListDetail() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  useEffect(() => {
-    (async () => {
-      if (!id) return
-      try {
-        const res = await getListDetail(id)
-        setList(res)
-      } catch (error) {
-        console.error('Failed to fetch list:', error)
-      }
-    })()
+  // Fetch list detail function wrapped in useCallback
+  const fetchListDetail = useCallback(async () => {
+    if (!id) return
+    try {
+      const res = await getListDetail(id)
+      setList(res)
+    } catch (error) {
+      console.error('Failed to fetch list:', error)
+    }
   }, [id])
+
+  // Initial fetch
+  useEffect(() => {
+    void fetchListDetail()
+  }, [fetchListDetail])
+
+  // Auto-refresh polling every 10 seconds
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      void fetchListDetail()
+    }, 10000) // Poll every 10 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [fetchListDetail])
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchListDetail()
+    setTimeout(() => setIsRefreshing(false), 500)
+  }
 
   const handleDeleteList = async () => {
     if (!id) return
@@ -54,6 +76,16 @@ export default function ListDetail() {
   const displayOwner = list.requester_name || list.owner_name || 'Unknown'
   const items = list.current_snapshot?.items || []
 
+  // Get dynamic table columns from first item
+  const tableColumns = items.length > 0 
+    ? Object.keys(items[0]).filter(key => !['entry_id', 'version_id'].includes(key))
+    : []
+  
+  // Format column header: contact_name -> Contact Name
+  const formatColumnHeader = (key: string) => {
+    return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
@@ -70,6 +102,27 @@ export default function ListDetail() {
               Back to Dashboard
             </button>
             <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  const listType = list.subdomain?.subdomain_name;
+                  if (listType) {
+                    const templateType = getListTypeFromSubdomain(listType);
+                    if (templateType) {
+                      downloadSampleCSV(templateType);
+                      setToast({ message: 'Sample CSV downloaded successfully!', type: 'success' });
+                    } else {
+                      setToast({ message: 'No sample template available for this list type', type: 'warning' });
+                    }
+                  }
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                title="Download sample CSV template"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download Sample CSV
+              </button>
               <button 
                 onClick={() => setUploadOpen(true)}
                 className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
@@ -97,24 +150,56 @@ export default function ListDetail() {
         {/* Title Section */}
         <div className="mb-8">
           <div className="flex items-start justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-sm tracking-wider uppercase font-semibold rounded-lg border border-primary/20">
+            <div className="flex items-center gap-3 mb-3">
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium transition-colors group"
+              >
+                <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Dashboard
+              </button>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-sm tracking-wider uppercase font-semibold rounded-lg border border-primary/20 inline-block">
                   {displayCategory}
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-500 text-sm font-medium">
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all duration-200 disabled:opacity-50"
+                title="Refresh list"
+              >
+                <svg 
+                  className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="mb-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 text-slate-500 text-sm font-medium mb-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   {displayOwner}
                 </div>
+                <h1 className="text-4xl font-bold text-slate-800 mb-2 bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">
+                  {displayTitle}
+                </h1>
+                <p className="text-slate-500 text-lg">
+                  {items.length} items in this pharmaceutical list
+                </p>
               </div>
-              <h1 className="text-4xl font-bold text-slate-800 mb-2 bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">
-                {displayTitle}
-              </h1>
-              <p className="text-slate-500 text-lg">
-                {items.length} items in this pharmaceutical list
-              </p>
             </div>
           </div>
 
@@ -179,35 +264,26 @@ export default function ListDetail() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Institution</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Tier</th>
+                    {tableColumns.map(col => (
+                      <th key={col} className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {formatColumnHeader(col)}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((it: any, index: number) => (
                     <tr 
-                      key={it.id || index} 
+                      key={it.entry_id || index} 
                       className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-transparent transition-colors duration-200 group"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-2 h-2 rounded-full bg-primary mr-3 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                          <div className="text-sm font-semibold text-slate-800">{it.name || 'N/A'}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-3 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-full">
-                          {it.specialty || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{it.institution || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-3 py-1 text-xs font-bold text-primary bg-primary/10 rounded-full border border-primary/20">
-                          {it.tier || 'N/A'}
-                        </span>
-                      </td>
+                      {tableColumns.map(col => (
+                        <td key={col} className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-slate-700">
+                            {it[col] || 'N/A'}
+                          </div>
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -217,16 +293,28 @@ export default function ListDetail() {
         </div>
       </main>
 
-      {uploadOpen && <CSVUploadModal onClose={() => setUploadOpen(false)} onAdd={async (rows: any) => {
+      {uploadOpen && <CSVUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} onAdd={async (rows: any) => {
         try {
-          await addItemsToList(id!, rows)
-          const updated = await getListDetail(id!)
-          setList(updated)
-          setUploadOpen(false)
-          setToast({ message: 'Items added successfully!', type: 'success' })
+          console.log('[DEBUG] Starting to add items to list:', id);
+          console.log('[DEBUG] Number of rows:', rows.length);
+          console.log('[DEBUG] Sample row:', rows[0]);
+          
+          const result = await addItemsToList(id!, rows);
+          console.log('[DEBUG] Add items result:', result);
+          
+          console.log('[DEBUG] Fetching updated list detail...');
+          const updated = await getListDetail(id!);
+          console.log('[DEBUG] Updated list data:', updated);
+          console.log('[DEBUG] Current snapshot:', updated.current_snapshot);
+          console.log('[DEBUG] Items count:', updated.current_snapshot?.items?.length || 0);
+          
+          setList(updated);
+          setUploadOpen(false);
+          setToast({ message: 'Items added successfully!', type: 'success' });
         } catch (error) {
-          console.error('Failed to add items:', error)
-          setToast({ message: 'Failed to add items. Please try again.', type: 'error' })
+          console.error('[ERROR] Failed to add items:', error);
+          console.error('[ERROR] Error details:', error);
+          setToast({ message: 'Failed to add items. Please try again.', type: 'error' });
         }
       }} />}
 

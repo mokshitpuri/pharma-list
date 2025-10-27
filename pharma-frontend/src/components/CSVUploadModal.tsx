@@ -1,11 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Papa from 'papaparse'
 import Toast from './Toast'
 
-export default function CSVUploadModal({ onClose, onAdd }: any) {
+interface CSVUploadModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onComplete?: (items: any[]) => void
+  onAdd?: (items: any[]) => void
+}
+
+export default function CSVUploadModal({ isOpen, onClose, onComplete, onAdd }: CSVUploadModalProps) {
   const [rows, setRows] = useState<any[]>([])
   const [selected, setSelected] = useState<Record<number, boolean>>({})
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setRows([])
+      setSelected({})
+      setToast(null)
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   const downloadSampleCSV = () => {
     // Sample data with pharmaceutical professional details
@@ -102,7 +120,12 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
       skipEmptyLines: true,
       complete: (results) => {
         setRows(results.data as any[])
-        setSelected({})
+        // Initialize all rows as selected by default
+        const initialSelection: Record<number, boolean> = {}
+        results.data.forEach((_, index) => {
+          initialSelection[index] = true
+        })
+        setSelected(initialSelection)
       }
     })
   }
@@ -111,9 +134,26 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
     setSelected(s => ({ ...s, [i]: !s[i] }))
   }
 
+  const toggleSelectAll = () => {
+    const allSelected = rows.every((_, i) => selected[i] === true)
+    const newSelection: Record<number, boolean> = {}
+    rows.forEach((_, i) => {
+      newSelection[i] = !allSelected
+    })
+    setSelected(newSelection)
+  }
+
   const addSelected = () => {
-    const chosen = rows.filter((r, i) => selected[i] !== false) // default include
-    onAdd(chosen)
+    const chosen = rows.filter((r, i) => selected[i] === true)
+    if (chosen.length === 0) {
+      setToast({ message: 'Please select at least one item to add.', type: 'warning' })
+      return
+    }
+    if (onComplete) {
+      onComplete(chosen)
+    } else if (onAdd) {
+      onAdd(chosen)
+    }
   }
 
   return (
@@ -173,23 +213,6 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
                   </div>
                 </div>
               </label>
-
-              {/* Sample Data Button */}
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={downloadSampleCSV}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-primary/30 bg-primary/5 text-primary font-medium hover:bg-primary/10 hover:border-primary/50 transition-all duration-200"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Download Sample CSV
-                </button>
-                <p className="text-xs text-slate-500 mt-2">
-                  Not sure what format to use? Download our sample file with proper headers
-                </p>
-              </div>
             </div>
 
             {/* Table Preview */}
@@ -204,11 +227,13 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="w-12 px-4 py-3">
                           <div className="flex justify-center">
-                            <div className="w-5 h-5 rounded-md border-2 border-primary/30 bg-primary/5 flex items-center justify-center">
-                              <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
+                            <input 
+                              type="checkbox" 
+                              checked={rows.length > 0 && rows.every((_, i) => selected[i] === true)}
+                              onChange={toggleSelectAll}
+                              className="w-4 h-4 rounded border-2 border-slate-300 text-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" 
+                              title="Select All"
+                            />
                           </div>
                         </th>
                         {rows[0] && Object.keys(rows[0]).map((h: any) => (
@@ -222,13 +247,13 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
                       {rows.map((r, i) => (
                         <tr 
                           key={i} 
-                          className={`transition-all duration-200 ${selected[i] !== false ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-slate-50'}`}
+                          className={`transition-all duration-200 ${selected[i] === true ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-slate-50'}`}
                         >
                           <td className="px-4 py-3 w-12">
                             <div className="flex justify-center">
                               <input 
                                 type="checkbox" 
-                                checked={selected[i] !== false} 
+                                checked={selected[i] === true} 
                                 onChange={() => toggleRow(i)}
                                 className="w-4 h-4 rounded border-2 border-slate-300 text-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" 
                               />
@@ -253,7 +278,7 @@ export default function CSVUploadModal({ onClose, onAdd }: any) {
             <div className="text-sm text-slate-600">
               {rows.length > 0 && (
                 <span className="font-medium">
-                  {Object.values(selected).filter(v => v !== false).length} of {rows.length} items selected
+                  {Object.values(selected).filter(v => v === true).length} of {rows.length} items selected
                 </span>
               )}
             </div>

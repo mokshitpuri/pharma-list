@@ -1,102 +1,154 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getListDetail, addItemsToList, deleteList, getLists } from '../api/listApi'
+import { getSubdomains } from '../api/listApi'
 import CSVUploadModal from '../components/CSVUploadModal'
 import Toast from '../components/Toast'
-import { getDomainDisplayName, migrateDomainName, getDomainConfig } from '../constants/domains'
+import { getDomainDisplayName, getDomainConfig } from '../constants/domains'
+import axiosClient from '../api/axiosClient'
+import { downloadSampleCSV, getListTypeFromSubdomain } from '../utils/csvTemplates'
+
+interface Subdomain {
+  subdomain_id: number
+  domain_id: number
+  subdomain_name: string
+}
+
+interface SubdomainEntry {
+  entry_id: number
+  [key: string]: any
+}
 
 export default function DomainView() {
   const { domainKey } = useParams()
   const navigate = useNavigate()
-  const [lists, setLists] = useState<any[]>([])
-  const [selectedListId, setSelectedListId] = useState<string | null>(null)
-  const [selectedList, setSelectedList] = useState<any>(null)
+  const [subdomains, setSubdomains] = useState<Subdomain[]>([])
+  const [selectedSubdomain, setSelectedSubdomain] = useState<Subdomain | null>(null)
+  const [entries, setEntries] = useState<SubdomainEntry[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [entriesLoading, setEntriesLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const decodedDomainKey = domainKey ? decodeURIComponent(domainKey) : ''
   const domainConfig = getDomainConfig(decodedDomainKey)
   const displayDomainName = getDomainDisplayName(decodedDomainKey)
 
+  // Map subdomain names to their corresponding entry table names
+  const getEntryTableName = (subdomainName: string): string | null => {
+    const tableMapping: Record<string, string> = {
+      'Target Lists': 'target_list_entries',
+      'Call Lists': 'call_list_entries',
+      'Formulary Decision-Maker Lists': 'formulary_decision_maker_entries',
+      'IDN/Health System Lists': 'idn_health_system_entries',
+      'Event Invitation Lists': 'event_invitation_entries',
+      'Digital Engagement Lists': 'digital_engagement_entries',
+      'High-Value Prescriber Lists': 'high_value_prescriber_entries',
+      'Competitor Target Lists': 'competitor_target_entries'
+    }
+    return tableMapping[subdomainName] || null
+  }
+
+  // Fetch entries function wrapped in useCallback
+  const fetchEntries = useCallback(async () => {
+    if (!selectedSubdomain) {
+      setEntries([])
+      return
+    }
+    
+    try {
+      setEntriesLoading(true)
+      const tableName = getEntryTableName(selectedSubdomain.subdomain_name)
+      
+      if (!tableName) {
+        setToast({ message: `Unknown subdomain type: ${selectedSubdomain.subdomain_name}`, type: 'error' })
+        setEntries([])
+        return
+      }
+
+      // Fetch entries from the appropriate table
+      const response = await axiosClient.get(`/api/${tableName}`)
+      setEntries(response.data || [])
+    } catch (error) {
+      console.error('Failed to fetch entries for subdomain:', error)
+      setToast({ message: 'Failed to load entries. Please try again.', type: 'error' })
+      setEntries([])
+    } finally {
+      setEntriesLoading(false)
+    }
+  }, [selectedSubdomain])
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchEntries()
+    setTimeout(() => setIsRefreshing(false), 500)
+  }
+
+  // Fetch subdomains for the selected domain
   useEffect(() => {
     (async () => {
+      if (!domainConfig) return
+      
       try {
         setLoading(true)
-        // Fetch all lists
-        const allLists = await getLists()
-        
-        // Filter lists by domain
-        const domainLists = allLists.filter((list: any) => {
-          const migratedDomain = migrateDomainName(list.category)
-          return migratedDomain === decodedDomainKey
-        })
+        const fetchedSubdomains = await getSubdomains(domainConfig.domainId)
+        setSubdomains(fetchedSubdomains)
 
-        setLists(domainLists)
-
-        // Auto-select first list if available
-        if (domainLists.length > 0 && !selectedListId) {
-          setSelectedListId(domainLists[0].id)
+        // Auto-select first subdomain if available
+        if (fetchedSubdomains.length > 0) {
+          setSelectedSubdomain(fetchedSubdomains[0])
         }
       } catch (error) {
-        console.error('Failed to fetch lists:', error)
-        setToast({ message: 'Failed to load lists. Please try again.', type: 'error' })
+        console.error('Failed to fetch subdomains:', error)
+        setToast({ message: 'Failed to load subdomains. Please try again.', type: 'error' })
       } finally {
         setLoading(false)
       }
     })()
-  }, [decodedDomainKey])
+  }, [decodedDomainKey, domainConfig])
 
+  // Fetch entries when subdomain is selected
   useEffect(() => {
-    (async () => {
-      if (!selectedListId) {
-        setSelectedList(null)
-        return
-      }
-      try {
-        const res = await getListDetail(selectedListId)
-        setSelectedList(res)
-      } catch (error) {
-        console.error('Failed to fetch list detail:', error)
-        setToast({ message: 'Failed to load list details.', type: 'error' })
-      }
-    })()
-  }, [selectedListId])
+    void fetchEntries()
+  }, [fetchEntries])
 
-  const handleDeleteList = async () => {
-    if (!selectedListId) return
-    try {
-      await deleteList(selectedListId)
-      setToast({ message: 'List deleted successfully', type: 'success' })
-      
-      // Remove from local lists
-      const updatedLists = lists.filter(l => l.id !== selectedListId)
-      setLists(updatedLists)
-      
-      // Select next available list or clear selection
-      if (updatedLists.length > 0) {
-        setSelectedListId(updatedLists[0].id)
-      } else {
-        setSelectedListId(null)
-        setSelectedList(null)
+  // Auto-refresh polling every 10 seconds
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      void fetchEntries()
+    }, 10000) // Poll every 10 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [fetchEntries])
+
+  const handleUploadComplete = async (uploadedItems: any[]) => {
+    // Refresh entries after upload
+    if (selectedSubdomain) {
+      const tableName = getEntryTableName(selectedSubdomain.subdomain_name)
+      if (tableName) {
+        try {
+          const response = await axiosClient.get(`/api/${tableName}`)
+          setEntries(response.data || [])
+          setToast({ message: 'Items uploaded successfully!', type: 'success' })
+        } catch (error) {
+          setToast({ message: 'Items uploaded but failed to refresh list.', type: 'warning' })
+        }
       }
-      
-      setShowDeleteConfirm(false)
-    } catch (error) {
-      console.error('Failed to delete list:', error)
-      setToast({ message: 'Failed to delete list. Please try again.', type: 'error' })
     }
+    setUploadOpen(false)
   }
 
-  if (loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-secondary animate-spin border-4 border-transparent border-t-white"></div>
-        <p className="text-slate-600 font-medium">Loading domain lists...</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-secondary animate-spin border-4 border-transparent border-t-white"></div>
+          <p className="text-slate-600 font-medium">Loading domain...</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   if (!domainConfig) {
     return (
@@ -120,10 +172,14 @@ export default function DomainView() {
     )
   }
 
-  // Get display data from selected list
-  const displayTitle = selectedList?.purpose || selectedList?.title || 'Select a list'
-  const displayOwner = selectedList?.requester_name || selectedList?.owner_name || 'Unknown'
-  const items = selectedList?.current_snapshot?.items || []
+  // Get column names for the current entry type
+  const getColumnNames = (): string[] => {
+    if (!entries || entries.length === 0) return []
+    const firstEntry = entries[0]
+    return Object.keys(firstEntry).filter(key => key !== 'entry_id' && key !== 'version_id' && key !== 'created_at')
+  }
+
+  const columns = getColumnNames()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -149,8 +205,42 @@ export default function DomainView() {
             </div>
             
             <div className="flex gap-3">
-              {selectedListId && (
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all duration-200 disabled:opacity-50"
+                title="Refresh entries"
+              >
+                <svg 
+                  className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              {selectedSubdomain && (
                 <>
+                  <button 
+                    onClick={() => {
+                      const listType = selectedSubdomain.subdomain_name;
+                      const templateType = getListTypeFromSubdomain(listType);
+                      if (templateType) {
+                        downloadSampleCSV(templateType);
+                        setToast({ message: 'Sample CSV downloaded successfully!', type: 'success' });
+                      } else {
+                        setToast({ message: 'No sample template available for this list type', type: 'warning' });
+                      }
+                    }}
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                    title="Download sample CSV template"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download Sample CSV
+                  </button>
                   <button 
                     onClick={() => setUploadOpen(true)}
                     className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
@@ -160,15 +250,6 @@ export default function DomainView() {
                     </svg>
                     Bulk Upload
                   </button>
-                  <button 
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete List
-                  </button>
                 </>
               )}
             </div>
@@ -177,23 +258,26 @@ export default function DomainView() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* List Selector Section */}
-        <div className="mb-8">
+        {/* Subdomain Selector Section */}
+        <div className="mb-6">
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-            <label className="text-sm font-semibold text-slate-700 mb-3 block">Select List to View</label>
+            <label className="text-sm font-semibold text-slate-700 mb-3 block">Select Subdomain</label>
             <div className="relative">
               <select
-                value={selectedListId || ''}
-                onChange={(e) => setSelectedListId(e.target.value)}
+                value={selectedSubdomain?.subdomain_id || ''}
+                onChange={(e) => {
+                  const subdomain = subdomains.find(s => s.subdomain_id === Number(e.target.value))
+                  setSelectedSubdomain(subdomain || null)
+                }}
                 className="w-full h-14 pl-4 pr-12 appearance-none rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-700 font-medium focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all duration-200 cursor-pointer text-lg"
-                disabled={lists.length === 0}
+                disabled={subdomains.length === 0}
               >
-                {lists.length === 0 ? (
-                  <option value="">No lists available in this domain</option>
+                {subdomains.length === 0 ? (
+                  <option value="">No subdomains available in this domain</option>
                 ) : (
-                  lists.map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.purpose || list.title || 'Untitled List'} - {list.requester_name || 'Unknown'}
+                  subdomains.map((subdomain) => (
+                    <option key={subdomain.subdomain_id} value={subdomain.subdomain_id}>
+                      {subdomain.subdomain_name}
                     </option>
                   ))
                 )}
@@ -204,226 +288,86 @@ export default function DomainView() {
                 </svg>
               </div>
             </div>
-            {lists.length > 0 && (
+            {subdomains.length > 0 && (
               <p className="mt-3 text-sm text-slate-500">
-                Viewing {lists.findIndex(l => l.id === selectedListId) + 1} of {lists.length} list{lists.length !== 1 ? 's' : ''} in {displayDomainName}
+                {subdomains.length} subdomain{subdomains.length !== 1 ? 's' : ''} available in {displayDomainName}
               </p>
             )}
           </div>
         </div>
 
-        {/* List Details - Only show if a list is selected */}
-        {selectedList ? (
-          <>
-            {/* Title Section */}
-            <div className="mb-8">
-              <div className="flex items-start justify-between mb-6">
+        {/* Entries Table */}
+        {selectedSubdomain && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center gap-1.5 text-slate-500 text-sm font-medium">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      {displayOwner}
-                    </div>
-                  </div>
-                  <h1 className="text-4xl font-bold text-slate-800 mb-2 bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">
-                    {displayTitle}
-                  </h1>
-                  <p className="text-slate-500 text-lg">
-                    {items.length} items in this pharmaceutical list
+                  <h2 className="text-2xl font-bold text-slate-800">{selectedSubdomain.subdomain_name}</h2>
+                  <p className="text-slate-500 mt-1">
+                    {entriesLoading ? 'Loading...' : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
                   </p>
                 </div>
               </div>
-
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-slate-500 mb-1">Total Items</div>
-                      <div className="text-3xl font-bold text-slate-800">{items.length}</div>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-slate-500 mb-1">Category</div>
-                      <div className="text-xl font-bold text-slate-800">{displayDomainName}</div>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/10 to-secondary/5 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-slate-500 mb-1">Lists in Domain</div>
-                      <div className="text-3xl font-bold text-slate-800">{lists.length}</div>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-success/10 to-success/5 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Data Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-                <h2 className="text-lg font-bold text-slate-800">List Items</h2>
+            {entriesLoading ? (
+              <div className="p-12 text-center">
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-secondary animate-spin border-4 border-transparent border-t-white"></div>
+                <p className="text-slate-600">Loading entries...</p>
               </div>
-              
-              {items.length === 0 ? (
-                <div className="px-6 py-16 text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">No items yet</h3>
-                  <p className="text-slate-500 mb-4">Upload a CSV file to add items to this list</p>
-                  <button 
-                    onClick={() => setUploadOpen(true)}
-                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 inline-flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    Upload CSV
-                  </button>
+            ) : entries.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Specialty</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Institution</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Tier</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {items.map((it: any, index: number) => (
-                        <tr 
-                          key={it.id || index} 
-                          className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-transparent transition-colors duration-200 group"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="w-2 h-2 rounded-full bg-primary mr-3 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                              <div className="text-sm font-semibold text-slate-800">{it.name || 'N/A'}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-3 py-1 text-xs font-medium text-slate-700 bg-slate-100 rounded-full">
-                              {it.specialty || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{it.institution || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-3 py-1 text-xs font-bold text-primary bg-primary/10 rounded-full border border-primary/20">
-                              {it.tier || 'N/A'}
-                            </span>
-                          </td>
-                        </tr>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">No entries yet</h3>
+                <p className="text-slate-500 mb-4">Upload a CSV file to add entries to this list</p>
+                <button
+                  onClick={() => setUploadOpen(true)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                >
+                  Upload CSV
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      {columns.map((column) => (
+                        <th key={column} className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          {column.replace(/_/g, ' ')}
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-slate-800 mb-2">No lists in this domain yet</h3>
-            <p className="text-slate-500">Create a new list to get started</p>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {entries.map((entry) => (
+                      <tr key={entry.entry_id} className="hover:bg-slate-50 transition-colors">
+                        {columns.map((column) => (
+                          <td key={column} className="px-6 py-4 text-sm text-slate-700">
+                            {entry[column] !== null && entry[column] !== undefined ? String(entry[column]) : '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </main>
 
       {/* CSV Upload Modal */}
-      {uploadOpen && selectedListId && (
-        <CSVUploadModal 
-          onClose={() => setUploadOpen(false)} 
-          onAdd={async (rows: any) => {
-            try {
-              await addItemsToList(selectedListId!, rows)
-              const updated = await getListDetail(selectedListId!)
-              setSelectedList(updated)
-              setUploadOpen(false)
-              setToast({ message: 'Items added successfully!', type: 'success' })
-            } catch (error) {
-              console.error('Failed to add items:', error)
-              setToast({ message: 'Failed to add items. Please try again.', type: 'error' })
-            }
-          }} 
+      {selectedSubdomain && (
+        <CSVUploadModal
+          isOpen={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          onComplete={handleUploadComplete}
         />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && selectedList && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowDeleteConfirm(false)}
-          />
-
-          {/* Modal */}
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fadeIn">
-            {/* Icon */}
-            <div className="mx-auto flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-
-            {/* Content */}
-            <div className="text-center mb-6">
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Delete List</h3>
-              <p className="text-slate-600">
-                Are you sure you want to delete <span className="font-semibold">"{displayTitle}"</span>? This action cannot be undone.
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 h-12 px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 transition-all duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteList}
-                className="flex-1 h-12 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300 hover:scale-105"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Toast Notification */}

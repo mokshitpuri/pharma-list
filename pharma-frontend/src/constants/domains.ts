@@ -4,6 +4,7 @@ export type DomainConfig = {
   key: DomainKey;
   displayName: string;
   listTypes: string[];
+  domainId: number; // Supabase domain_id
 };
 
 export const DOMAIN_CONFIGS: DomainConfig[] = [
@@ -13,7 +14,8 @@ export const DOMAIN_CONFIGS: DomainConfig[] = [
     listTypes: [
       'Target Lists',
       'Call Lists',
-    ]
+    ],
+    domainId: 1
   },
   {
     key: 'Account/Institutional',
@@ -21,7 +23,8 @@ export const DOMAIN_CONFIGS: DomainConfig[] = [
     listTypes: [
       'Formulary Decision-Maker Lists',
       'IDN/Health System Lists',
-    ]
+    ],
+    domainId: 2
   },
   {
     key: 'Marketing Campaign',
@@ -29,7 +32,8 @@ export const DOMAIN_CONFIGS: DomainConfig[] = [
     listTypes: [
       'Event Invitation Lists',
       'Digital Engagement Lists',
-    ]
+    ],
+    domainId: 3
   },
   {
     key: 'Data/Analytics',
@@ -37,7 +41,8 @@ export const DOMAIN_CONFIGS: DomainConfig[] = [
     listTypes: [
       'High-Value Prescriber Lists',
       'Competitor Target Lists',
-    ]
+    ],
+    domainId: 4
   }
 ];
 

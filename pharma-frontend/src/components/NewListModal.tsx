@@ -178,15 +178,14 @@ const NewListModal = ({ isOpen, onClose, onSubmit }: NewListModalProps) => {
       </div>
 
       {/* CSV Upload Modal (shows preview & selection). CSVUploadModal returns chosen rows via onAdd */}
-      {isCSVModalOpen && (
-        <CSVUploadModal
-          onClose={() => setIsCSVModalOpen(false)}
-          onAdd={(rows: any[]) => {
-            setImportedRows(rows);
-            setIsCSVModalOpen(false);
-          }}
-        />
-      )}
+      <CSVUploadModal
+        isOpen={isCSVModalOpen}
+        onClose={() => setIsCSVModalOpen(false)}
+        onAdd={(rows: any[]) => {
+          setImportedRows(rows);
+          setIsCSVModalOpen(false);
+        }}
+      />
     </div>
   );
 };

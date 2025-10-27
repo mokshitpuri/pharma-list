@@ -4,42 +4,78 @@
 
 import { DomainKey } from './constants/domains'
 
-// List Request (from backend schema)
+// List Request (maps to list_requests table in Supabase)
 export type ListSummary = {
-  id: string
+  request_id: number
+  subdomain_id: number
   requester_name: string
-  requester_role: string
-  purpose: string
-  category: DomainKey | string // Supports both new and legacy domain names
+  request_purpose: string
+  status?: string
+  assigned_to?: string
   created_at: string
+  // Optional joined data
+  subdomain?: {
+    subdomain_id: number
+    domain_id: number
+    subdomain_name: string
+  }
 }
 
 export type ListDetail = ListSummary & {
-  // Additional fields can be added as backend expands
+  // Additional fields from joined data
+  current_version?: ListVersion
   versions?: ListVersion[]
   current_snapshot?: {
     items: any[]
   }
 }
 
-// List Version (from backend schema)
+// List Version (from list_versions table)
 export type ListVersion = {
-  id: string
-  list_id: string
+  version_id: number
+  request_id: number
   version_number: number
-  changes_summary: string
-  rationale: string
+  changes_summary?: string
+  rationale?: string
   updated_by: string
-  updated_at: string
+  created_at: string
 }
 
-// Work Log (from backend schema)
+// Work Log (from work_logs table)
 export type WorkLog = {
-  id: string
-  list_id: string
-  action: string
-  performed_by: string
-  timestamp: string
+  log_id?: number
+  request_id: number
+  version_id?: number
+  worker_name: string
+  activity_description: string
+  decisions_made?: string
+  activity_date?: string
+  // Optional joined data from list_requests
+  list_requests?: {
+    request_id: number
+    subdomain_id: number
+    requester_name: string
+    request_purpose: string
+    status?: string
+    subdomains?: {
+      subdomain_id: number
+      domain_id: number
+      subdomain_name: string
+    }
+  }
 }
 
+// Subdomain (from subdomains table)
+export type Subdomain = {
+  subdomain_id: number
+  domain_id: number
+  subdomain_name: string
+}
+
+// Domain (from domains table)
+export type Domain = {
+  domain_id: number
+  domain_name: string
+  created_at?: string
+}
 

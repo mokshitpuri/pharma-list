@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import DomainView from './pages/DomainView'
 import ListDetail from './pages/ListDetail'
 import HistoryPage from './pages/HistoryPage'
+import DomainHistoryPage from './pages/DomainHistoryPage'
 import SidebarListBot from './components/SidebarListBot'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/domain/:domainKey" element={<DomainView />} />
+            <Route path="/domain/:domainKey/history" element={<DomainHistoryPage />} />
             <Route path="/list/:id" element={<ListDetail />} />
             <Route path="/list/:id/history" element={<HistoryPage />} />
           </Routes>

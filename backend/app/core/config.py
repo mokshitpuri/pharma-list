@@ -1,0 +1,14 @@
+
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    SUPABASE_URL: str
+    SUPABASE_KEY: str
+    SUPABASE_DB_URL: str | None = None
+    OPENAI_API_KEY: str | None = None
+
+    class Config:
+        env_file = ".env"
+        extra = "allow"  # Allow extra fields from .env
+
+settings = Settings()

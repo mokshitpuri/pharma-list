@@ -6,13 +6,15 @@ import axiosClient from './axiosClient'
 import type { ListSummary, ListDetail, ListVersion, WorkLog } from '../types'
 
 /**
- * Get all lists, optionally filtered by category
+ * Get all lists, optionally filtered by category or subdomain
  */
-export async function getLists(category?: string): Promise<ListSummary[]> {
+export async function getLists(category?: string, subdomainId?: number): Promise<ListSummary[]> {
   try {
-    const response = await axiosClient.get('/lists', {
-      params: category ? { category } : {}
-    })
+    const params: any = {}
+    if (category) params.category = category
+    if (subdomainId) params.subdomain_id = subdomainId
+    
+    const response = await axiosClient.get('/api/lists', { params })
     return response.data
   } catch (error) {
     console.error('Error fetching lists:', error)
@@ -23,9 +25,9 @@ export async function getLists(category?: string): Promise<ListSummary[]> {
 /**
  * Get detailed information for a specific list
  */
-export async function getListDetail(id: string): Promise<ListDetail> {
+export async function getListDetail(id: string | number): Promise<ListDetail> {
   try {
-    const response = await axiosClient.get(`/lists/${id}`)
+    const response = await axiosClient.get(`/api/lists/${id}`)
     return response.data
   } catch (error) {
     console.error(`Error fetching list ${id}:`, error)
@@ -37,13 +39,13 @@ export async function getListDetail(id: string): Promise<ListDetail> {
  * Create a new list
  */
 export async function createList(payload: {
+  subdomain_id: number
   requester_name: string
-  requester_role: string
-  purpose: string
-  category: string
+  request_purpose: string
+  status?: string
 }): Promise<ListSummary> {
   try {
-    const response = await axiosClient.post('/lists', payload)
+    const response = await axiosClient.post('/api/lists', payload)
     return response.data
   } catch (error) {
     console.error('Error creating list:', error)
@@ -54,14 +56,14 @@ export async function createList(payload: {
 /**
  * Update an existing list
  */
-export async function updateList(id: string, payload: {
+export async function updateList(id: string | number, payload: {
   requester_name?: string
-  requester_role?: string
-  purpose?: string
-  category?: string
+  request_purpose?: string
+  status?: string
+  assigned_to?: string
 }): Promise<ListSummary> {
   try {
-    const response = await axiosClient.put(`/lists/${id}`, payload)
+    const response = await axiosClient.put(`/api/lists/${id}`, payload)
     return response.data
   } catch (error) {
     console.error(`Error updating list ${id}:`, error)
@@ -72,9 +74,9 @@ export async function updateList(id: string, payload: {
 /**
  * Add items to an existing list (creates a new version)
  */
-export async function addItemsToList(id: string, items: any[], updatedBy?: string): Promise<any> {
+export async function addItemsToList(id: string | number, items: any[], updatedBy?: string): Promise<any> {
   try {
-    const response = await axiosClient.post(`/lists/${id}/items`, {
+    const response = await axiosClient.post(`/api/lists/${id}/items`, {
       items,
       updated_by: updatedBy || 'Current User'
     })
@@ -88,9 +90,9 @@ export async function addItemsToList(id: string, items: any[], updatedBy?: strin
 /**
  * Delete a list
  */
-export async function deleteList(id: string): Promise<{ success: boolean }> {
+export async function deleteList(id: string | number): Promise<{ success: boolean }> {
   try {
-    await axiosClient.delete(`/lists/${id}`)
+    await axiosClient.delete(`/api/lists/${id}`)
     return { success: true }
   } catch (error) {
     console.error(`Error deleting list ${id}:`, error)
@@ -144,6 +146,22 @@ export async function getWorkLogs(listId: string): Promise<WorkLog[]> {
 }
 
 /**
+ * Get work logs for all lists in a specific domain
+ */
+export async function getWorkLogsByDomain(domainId: number, limit?: number): Promise<WorkLog[]> {
+  try {
+    const params: any = {}
+    if (limit) params.limit = limit
+    
+    const response = await axiosClient.get(`/api/lists/domain/${domainId}/worklogs`, { params })
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching work logs for domain ${domainId}:`, error)
+    throw error
+  }
+}
+
+/**
  * Add a work log entry
  */
 export async function addWorkLog(payload: {
@@ -156,6 +174,36 @@ export async function addWorkLog(payload: {
     return response.data
   } catch (error) {
     console.error('Error adding work log:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all subdomains, optionally filtered by domain_id
+ */
+export async function getSubdomains(domainId?: number): Promise<any[]> {
+  try {
+    const response = await axiosClient.get('/api/subdomains', {
+      params: domainId ? { domain_id: domainId } : {}
+    })
+    return response.data
+  } catch (error) {
+    console.error('Error fetching subdomains:', error)
+    throw error
+  }
+}
+
+/**
+ * Get lists by subdomain_id
+ */
+export async function getListsBySubdomain(subdomainId: number): Promise<any[]> {
+  try {
+    const response = await axiosClient.get('/api/list_requests', {
+      params: { subdomain_id: subdomainId }
+    })
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching lists for subdomain ${subdomainId}:`, error)
     throw error
   }
 }
