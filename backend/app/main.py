@@ -45,19 +45,37 @@ def embed_query(state: RAGState):
 
 
 def retrieve_docs(state: RAGState):
-    """Retrieve similar docs from Supabase using vector similarity."""
+    """Retrieve similar documents using Supabase vector search."""
     try:
         query_vec = state["query_embedding"]
         if not query_vec:
+            print("⚠ No embeddings generated.")
             state["retrieved_docs"] = []
             return state
 
-        # Convert embedding to string for RPC
-        query_vec_str = "[" + ",".join([str(x) for x in query_vec]) + "]"
+        # --- Call the Supabase RPC ---
         supabase = get_supabase_client()
-        result = supabase.rpc("match_list_embeddings", {"query_embedding": query_vec_str}).execute()
+        result = supabase.rpc(
+            "match_list_embeddings",
+            {
+                "query_embedding": query_vec,   # list of floats
+                "filter_domain": None,          # optional filters
+                "filter_subdomain": None,
+                "match_threshold": 0.3,         # lower threshold for testing
+                "match_count": 10
+            }
+        ).execute()
 
-        state["retrieved_docs"] = result.data or []
+        # --- Handle RPC response ---
+        if hasattr(result, "error") and result.error:
+            print("❌ Supabase RPC Error:", result.error)
+            state["retrieved_docs"] = []
+        elif result.data:
+            state["retrieved_docs"] = result.data
+        else:
+            print("⚠ No matches found (empty data).")
+            state["retrieved_docs"] = []
+
     except Exception as e:
         print(f"❌ Error in retrieve_docs: {e}")
         state["retrieved_docs"] = []
@@ -65,47 +83,40 @@ def retrieve_docs(state: RAGState):
 
 
 def compose_context(state: RAGState):
-    """Combine retrieved docs into a single context."""
-    docs = [r.get("content", "") for r in state["retrieved_docs"]]
-    # Clean up the raw database format from the context
-    context = "\n\n".join(docs)
-    # Remove excessive asterisks and clean up field markers
-    context = context.replace("**", "")
-    state["context_text"] = f"Relevant Data:\n{context}\n\nUser Question: {state['question']}"
+    """Combine retrieved documents into a readable context."""
+    try:
+        if not state["retrieved_docs"]:
+            state["context_text"] = f"No context found for: {state['question']}"
+            return state
+
+        docs = [
+            f"[{r.get('entity_type', 'Unknown').capitalize()} #{r.get('entity_id', '')}]\n{r.get('content', '')}"
+            for r in state["retrieved_docs"]
+        ]
+        context = "\n\n".join(docs)
+        state["context_text"] = f"Context:\n{context}\n\nQuestion: {state['question']}"
+    except Exception as e:
+        print(f"❌ Error in compose_context: {e}")
+        state["context_text"] = state["question"]
     return state
 
 
 def generate_answer(state: RAGState):
-    """Generate a final answer using Gemini."""
+    """Generate final answer using Gemini based on retrieved context."""
     try:
-        prompt = f"""
-You are a professional pharmaceutical data assistant helping users understand their list data.
+        context_text = state["context_text"]
+        prompt = f"""You are a helpful assistant that answers questions based only on the provided context.
 
-RULES:
-1. Do NOT use Markdown syntax like **, ##, or *.
-2. Present the response in clear plain text only.
-3. Use bullet points or numbered lists if needed, but without symbols like *, #, or **.
-4. Write clean, concise, professional sentences.
-5. Remove unnecessary formatting characters.
+{context_text}
 
-Context:
-{state['context_text']}
+Answer clearly and concisely using only this context."""
 
-Now provide a clear and professional response in plain text only.
-"""
-        model = genai.GenerativeModel(
-            'gemini-2.0-flash-exp',
-            generation_config={
-                'temperature': 0.3,
-                'top_p': 0.8,
-                'top_k': 40,
-            }
-        )
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         response = model.generate_content(prompt)
         state["final_answer"] = response.text
     except Exception as e:
-        state["final_answer"] = "I apologize, but I encountered an error while processing your request. Please try again or rephrase your question."
         print(f"❌ Error in generate_answer: {e}")
+        state["final_answer"] = "Error generating answer."
     return state
 
 
@@ -181,3 +192,4 @@ def ask_bot(request: QueryRequest):
 
 # Include existing CRUD API routes
 app.include_router(api_router, prefix="/api")
+
