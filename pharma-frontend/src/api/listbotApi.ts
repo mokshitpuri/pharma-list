@@ -21,7 +21,7 @@ export interface ListBotQueryResponse {
  */
 export const postListBotQuery = async (data: ListBotQueryRequest): Promise<ListBotQueryResponse> => {
   try {
-    const response = await axiosClient.post('/query', {
+    const response = await axiosClient.post('/api/query', {
       question: data.question
     })
     return response.data

@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     SUPABASE_DB_URL: str | None = None
     OPENAI_API_KEY: str | None = None
+    GEMINI_API_KEY: str  # Required for RAG chatbot
 
     class Config:
         env_file = ".env"
