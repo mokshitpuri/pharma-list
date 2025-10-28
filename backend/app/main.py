@@ -81,24 +81,17 @@ def generate_answer(state: RAGState):
         prompt = f"""
 You are a professional pharmaceutical data assistant helping users understand their list data.
 
-CRITICAL FORMATTING RULES:
-1. NEVER include raw database syntax like "**field_name:**" in your response
-2. Present information in clean, professional format using proper markdown
-3. Use tables, bullet points, or numbered lists for clarity
-4. Remove all asterisks (**) from field names - just show the actual values
-5. Organize information logically with clear headers
-6. If there are multiple entries, present them in a structured way (numbered list or table)
-7. Keep language professional and concise
+RULES:
+1. Do NOT use Markdown syntax like **, ##, or *.
+2. Present the response in clear plain text only.
+3. Use bullet points or numbered lists if needed, but without symbols like *, #, or **.
+4. Write clean, concise, professional sentences.
+5. Remove unnecessary formatting characters.
 
-When presenting list entries:
-- Use clear headers like "### Entry 1", "### Entry 2", etc.
-- Show only relevant information (names, IDs, descriptions, dates)
-- Format dates in readable format (e.g., "October 27, 2025")
-- Group related information together
-
+Context:
 {state['context_text']}
 
-Provide a clean, professional response that looks good in a chat interface. Use markdown formatting for better readability.
+Now provide a clear and professional response in plain text only.
 """
         model = genai.GenerativeModel(
             'gemini-2.0-flash-exp',

@@ -12,7 +12,7 @@ router = APIRouter(prefix='/lists', tags=['lists'])
 def _get_supabase():
     return get_supabase_client()
 
-@router.get('/', response_model=List[Dict[str, Any]])
+@router.get('', response_model=List[Dict[str, Any]])
 def get_lists(category: Optional[str] = None, subdomain_id: Optional[int] = None, limit: int = 100):
     """
     Get all lists, optionally filtered by category or subdomain_id
@@ -121,7 +121,7 @@ def get_list_detail(list_id: int):
         print(f"[ERROR GET_LIST_DETAIL] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post('/', status_code=status.HTTP_201_CREATED)
+@router.post('', status_code=status.HTTP_201_CREATED)
 def create_list(payload: Dict[str, Any]):
     """
     Create a new list
