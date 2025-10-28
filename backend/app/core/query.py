@@ -1,7 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict, List, Dict, Any
 import google.generativeai as genai
-
 from supabase import create_client
 import os
 from dotenv import load_dotenv
@@ -12,7 +11,7 @@ load_dotenv()
 # --- INITIALIZATION ---
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-# Configure Gemini with API key (standard approach that works across all SDK versions)
+# Configure Gemini API
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --- STATE ---
@@ -22,6 +21,7 @@ class RAGState(TypedDict):
     retrieved_docs: List[Dict[str, Any]]
     context_text: str
     final_answer: str
+
 
 # --- 1️⃣ EMBED QUERY ---
 def embed_query(state: RAGState):
@@ -34,10 +34,12 @@ def embed_query(state: RAGState):
             task_type="retrieval_query"
         )
         state["query_embedding"] = response['embedding']
+        # print(f"✅ Generated embedding: len={len(state['query_embedding'])}")
     except Exception as e:
         print(f"❌ Error in embed_query: {e}")
         state["query_embedding"] = []
     return state
+
 
 # --- 2️⃣ RETRIEVE FROM SUPABASE ---
 def retrieve_docs(state: RAGState):
@@ -45,30 +47,44 @@ def retrieve_docs(state: RAGState):
     try:
         query_vec = state["query_embedding"]
         if not query_vec:
-            print("⚠️ No embeddings generated.")
+            print("⚠ No embeddings generated.")
             state["retrieved_docs"] = []
             return state
 
-        # Convert to SQL-friendly array string
-        query_vec_str = "[" + ",".join(map(str, query_vec)) + "]"
+        # print(f"🔎 Running match_list_embeddings (dim={len(query_vec)})...")
 
-        # Call RPC function in Supabase
+        # --- DEBUG: print early info
+        # print("DEBUG: query_embedding type:", type(query_vec))
+        # print("DEBUG: first 10 dims:", query_vec[:10])
+
+        # --- Call the Supabase RPC ---
         result = supabase.rpc(
             "match_list_embeddings",
             {
-                "query_embedding": query_vec_str,
-                "match_threshold": 0.7,
-                "match_count":20
-                # Optional: filter by entity_type (e.g., "employee")
-                # "filter_entity_type": "employee"
-            },
+                "query_embedding": query_vec,   # list of floats
+                "filter_domain": None,          # optional filters
+                "filter_subdomain": None,
+                "match_threshold": 0.3,         # lower threshold for testing
+                "match_count": 10
+            }
         ).execute()
 
-        state["retrieved_docs"] = result.data or []
+        # --- Handle RPC response ---
+        if hasattr(result, "error") and result.error:
+            print("❌ Supabase RPC Error:", result.error)
+            state["retrieved_docs"] = []
+        elif result.data:
+            # print(f"✅ Retrieved {len(result.data)} matching docs.")
+            state["retrieved_docs"] = result.data
+        else:
+            print("⚠ No matches found (empty data).")
+            state["retrieved_docs"] = []
+
     except Exception as e:
         print(f"❌ Error in retrieve_docs: {e}")
         state["retrieved_docs"] = []
     return state
+
 
 # --- 3️⃣ COMPOSE CONTEXT ---
 def compose_context(state: RAGState):
@@ -89,6 +105,7 @@ def compose_context(state: RAGState):
         state["context_text"] = state["question"]
     return state
 
+
 # --- 4️⃣ GENERATE ANSWER ---
 def generate_answer(state: RAGState):
     """Generate final answer using Gemini based on retrieved context."""
@@ -99,7 +116,7 @@ def generate_answer(state: RAGState):
 {context_text}
 
 Answer clearly and concisely using only this context."""
-        
+
         model = genai.GenerativeModel('gemini-2.0-flash-exp')
         response = model.generate_content(prompt)
         state["final_answer"] = response.text
@@ -107,6 +124,7 @@ Answer clearly and concisely using only this context."""
         print(f"❌ Error in generate_answer: {e}")
         state["final_answer"] = "Error generating answer."
     return state
+
 
 # --- 5️⃣ BUILD GRAPH ---
 def build_rag_graph():
@@ -123,8 +141,9 @@ def build_rag_graph():
     builder.add_edge("generate_answer", END)
     return builder.compile()
 
+
 # --- 6️⃣ MAIN CHAT LOOP ---
-if __name__ == "__main__":
+if _name_ == "_main_":
     graph = build_rag_graph()
 
     print("=" * 70)
