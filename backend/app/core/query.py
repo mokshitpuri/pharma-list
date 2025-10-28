@@ -143,7 +143,7 @@ def build_rag_graph():
 
 
 # --- 6️⃣ MAIN CHAT LOOP ---
-if _name_ == "_main_":
+if __name__ == "__main__":
     graph = build_rag_graph()
 
     print("=" * 70)
