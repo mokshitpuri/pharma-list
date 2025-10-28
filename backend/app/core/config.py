@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     SUPABASE_DB_URL: str | None = None
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str  # Required for RAG chatbot
+    CHATAI_API_KEY: str  # Required for OpenAI-compatible chat API
 
     class Config:
         env_file = ".env"
