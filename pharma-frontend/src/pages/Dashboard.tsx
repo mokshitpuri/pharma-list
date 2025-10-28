@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getLists, createList, addItemsToList } from '../api/listApi';
+import { getLists, createList } from '../api/listApi';
 import NewListModal from '../components/NewListModal';
 import Toast from '../components/Toast';
 import { DOMAIN_CONFIGS, migrateDomainName, type DomainKey } from '../constants/domains';
@@ -28,13 +28,25 @@ const Dashboard = () => {
     void fetchLists();
   }, [fetchLists]);
 
-  // Auto-refresh polling every 15 seconds
+  // Auto-refresh polling every 30 seconds for real-time sync
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void fetchLists();
-    }, 15000); // Poll every 15 seconds
+    }, 30000); // Poll every 30 seconds for better sync
 
     return () => clearInterval(pollInterval);
+  }, [fetchLists]);
+
+  // Refresh when user returns to the tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchLists();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchLists]);
 
   // Manual refresh function
@@ -68,14 +80,8 @@ const Dashboard = () => {
     navigate(`/domain/${encodeURIComponent(domainKey)}`);
   };
 
-  const handleCreateList = async (title: string, domain: string, items?: any[]) => {
+  const handleCreateList = async (title: string, domain: string) => {
     try {
-      // Validate that items are provided (CSV import is mandatory)
-      if (!items || items.length === 0) {
-        setToast({ message: 'CSV import is required to create a list. Please import a CSV file with items.', type: 'warning' });
-        return; // Keep modal open for user to import CSV
-      }
-
       // Get domain config to find domain_id
       const domainConfig = DOMAIN_CONFIGS.find(d => d.key === domain);
       if (!domainConfig) {
@@ -104,40 +110,24 @@ const Dashboard = () => {
           status: 'In Progress'
         });
 
-        // Upload the imported rows to the new list
+        // Successfully created list
         if (newList?.request_id) {
-          try {
-            await addItemsToList(newList.request_id, items, 'Current User');
-            // Successfully created list with items
-            const updatedLists = await getLists();
-            setLists(updatedLists);
-            setIsNewListModalOpen(false); // Close modal on success
-            setToast({ message: 'List created successfully!', type: 'success' });
-          } catch (err) {
-            console.error('Failed to upload imported items:', err);
-            setToast({ message: 'List created but failed to add items. Please try adding items manually.', type: 'warning' });
-            // Still refresh the list and close modal
-            const updatedLists = await getLists();
-            setLists(updatedLists);
-            setIsNewListModalOpen(false);
-          }
+          const updatedLists = await getLists();
+          setLists(updatedLists);
+          setIsNewListModalOpen(false);
+          setToast({ message: 'List created successfully! You can now add entries from the domain view.', type: 'success' });
         } else {
           setToast({ message: 'Failed to create list. Please try again.', type: 'error' });
-          setIsNewListModalOpen(false); // Close modal on failure
+          setIsNewListModalOpen(false);
         }
       } catch (subdomainError) {
         console.error('Failed to fetch subdomains:', subdomainError);
-        console.error('Subdomain error details:', {
-          message: subdomainError instanceof Error ? subdomainError.message : 'Unknown error',
-          response: (subdomainError as any)?.response?.data,
-          status: (subdomainError as any)?.response?.status
-        });
         setToast({ message: 'Failed to fetch subdomain information. Please try again.', type: 'error' });
       }
     } catch (error) {
       console.error('Failed to create list:', error);
       setToast({ message: 'Failed to create list. Please try again.', type: 'error' });
-      setIsNewListModalOpen(false); // Close modal on error
+      setIsNewListModalOpen(false);
     }
   };
 
@@ -239,9 +229,7 @@ const Dashboard = () => {
               <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-secondary/10 to-transparent rounded-bl-full"></div>
               <div className="relative">
                 <div className="text-sm font-medium text-slate-500 mb-1">Active Domains</div>
-                <div className="text-3xl font-bold text-slate-800">
-                  {new Set(lists.filter(l => l.subdomain).map(l => l.subdomain!.domain_id)).size}
-                </div>
+                <div className="text-3xl font-bold text-slate-800">{DOMAIN_CONFIGS.length}</div>
               </div>
             </div>
             <div className="relative overflow-hidden bg-white rounded-2xl p-5 border border-slate-200 hover:border-success/30 hover:shadow-lg transition-all duration-300 group">
@@ -303,12 +291,23 @@ const Dashboard = () => {
                     <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradients[index]} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-500`}>
                       {domainIcons[index]}
                     </div>
-                    {stats.count > 0 && (
-                      <div className="px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-sm font-bold rounded-lg border border-primary/20">
-                        {stats.count} {stats.count === 1 ? 'List' : 'Lists'}
-                      </div>
-                    )}
+                    {/* View Lists Button - Moved to Top Right */}
+                    <button
+                      className="px-5 py-3 bg-gradient-to-r from-primary to-secondary text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                    >
+                      <span>View Lists</span>
+                      <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </button>
                   </div>
+
+                  {/* Stats Badge */}
+                  {stats.count > 0 && (
+                    <div className="mb-4 inline-block px-3 py-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-sm font-bold rounded-lg border border-primary/20">
+                      {stats.count} {stats.count === 1 ? 'List' : 'Lists'}
+                    </div>
+                  )}
 
                   {/* Domain Name */}
                   <h3 className="text-2xl font-bold text-slate-800 mb-3 group-hover:text-primary transition-colors duration-300">
@@ -325,27 +324,45 @@ const Dashboard = () => {
                     ))}
                   </div>
 
-                  {/* View Button */}
+                  {/* Additional Action Buttons */}
                   <div className="flex gap-3">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        navigate(`/domain/${encodeURIComponent(domain.key)}/history`)
+                        navigate(`/domain/${encodeURIComponent(domain.key)}/requests`)
                       }}
-                      className="flex-1 px-4 py-3 bg-white border-2 border-primary text-primary font-semibold rounded-xl hover:bg-primary/5 transition-all duration-300 flex items-center justify-center gap-2"
+                      className="flex-1 px-3 py-2 bg-white border-2 border-purple-500 text-purple-600 font-semibold rounded-xl hover:bg-purple-50 transition-all duration-300 flex items-center justify-center gap-2"
+                      title="View all list requests for this domain"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <span>Requests</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/domain/${encodeURIComponent(domain.key)}/versions`)
+                      }}
+                      className="flex-1 px-3 py-2 bg-white border-2 border-orange-500 text-orange-600 font-semibold rounded-xl hover:bg-orange-50 transition-all duration-300 flex items-center justify-center gap-2"
+                      title="View version history for this domain"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <span>History</span>
                     </button>
                     <button
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 group-hover:scale-105 flex items-center justify-center gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/domain/${encodeURIComponent(domain.key)}/history`)
+                      }}
+                      className="flex-1 px-3 py-2 bg-white border-2 border-primary text-primary font-semibold rounded-xl hover:bg-primary/5 transition-all duration-300 flex items-center justify-center gap-2"
                     >
-                      <span>View Lists</span>
-                      <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
+                      <span>Work Attribution</span>
                     </button>
                   </div>
                 </div>

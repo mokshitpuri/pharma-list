@@ -1,12 +1,10 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
-import CSVUploadModal from './CSVUploadModal';
 import { DOMAIN_CONFIGS, getDomainKeys, getListTypesForDomain, DomainKey } from '../constants/domains';
 
 interface NewListModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // now accepts optional items parsed from CSV
-  onSubmit: (title: string, domain: string, items?: any[]) => Promise<void> | void;
+  onSubmit: (title: string, domain: string) => Promise<void> | void;
 }
 
 const domains = getDomainKeys();
@@ -14,8 +12,6 @@ const domains = getDomainKeys();
 const NewListModal = ({ isOpen, onClose, onSubmit }: NewListModalProps) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainKey>(domains[0]);
   const [selectedListType, setSelectedListType] = useState<string>('');
-  const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
-  const [importedRows, setImportedRows] = useState<any[]>([]);
 
   // Update list type when domain changes
   const handleDomainChange = (domain: DomainKey) => {
@@ -37,12 +33,11 @@ const NewListModal = ({ isOpen, onClose, onSubmit }: NewListModalProps) => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (selectedListType.trim() && selectedDomain) {
-      await onSubmit(selectedListType.trim(), selectedDomain, importedRows.length > 0 ? importedRows : undefined);
+      await onSubmit(selectedListType.trim(), selectedDomain);
       // Reset form after successful submission
       setSelectedDomain(domains[0]);
       const listTypes = getListTypesForDomain(domains[0]);
       setSelectedListType(listTypes[0] || '');
-      setImportedRows([]);
     }
   };
 
@@ -50,8 +45,6 @@ const NewListModal = ({ isOpen, onClose, onSubmit }: NewListModalProps) => {
     setSelectedDomain(domains[0]);
     const listTypes = getListTypesForDomain(domains[0]);
     setSelectedListType(listTypes[0] || '');
-    setImportedRows([]);
-    setIsCSVModalOpen(false);
     onClose();
   };
 
@@ -134,58 +127,24 @@ const NewListModal = ({ isOpen, onClose, onSubmit }: NewListModalProps) => {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between gap-3 mt-8">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsCSVModalOpen(true)}
-                className="h-12 px-4 rounded-xl border-2 border-primary bg-primary/5 text-primary font-semibold hover:bg-primary/10 transition-all duration-200"
-              >
-                Import CSV <span className="text-red-500">*</span>
-              </button>
-              {importedRows.length > 0 ? (
-                <div className="text-sm font-medium text-green-600 flex items-center gap-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  {importedRows.length} rows ready to upload
-                </div>
-              ) : (
-                <div className="text-sm font-medium text-red-500">
-                  CSV import required
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 w-1/2 justify-end">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="flex-1 h-12 px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 transition-all duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!selectedListType.trim() || importedRows.length === 0}
-                className="flex-1 h-12 px-4 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                Create List
-              </button>
-            </div>
+          <div className="flex gap-3 mt-8">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex-1 h-12 px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 transition-all duration-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedListType.trim()}
+              className="flex-1 h-12 px-4 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              Create List
+            </button>
           </div>
         </form>
       </div>
-
-      {/* CSV Upload Modal (shows preview & selection). CSVUploadModal returns chosen rows via onAdd */}
-      <CSVUploadModal
-        isOpen={isCSVModalOpen}
-        onClose={() => setIsCSVModalOpen(false)}
-        onAdd={(rows: any[]) => {
-          setImportedRows(rows);
-          setIsCSVModalOpen(false);
-        }}
-      />
     </div>
   );
 };

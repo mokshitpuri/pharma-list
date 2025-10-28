@@ -1,11 +1,11 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getSubdomains } from '../api/listApi'
-import CSVUploadModal from '../components/CSVUploadModal'
+import InlineAddEntry from '../components/InlineAddEntry'
 import Toast from '../components/Toast'
+import ConfirmModal from '../components/ConfirmModal'
 import { getDomainDisplayName, getDomainConfig } from '../constants/domains'
 import axiosClient from '../api/axiosClient'
-import { downloadSampleCSV, getListTypeFromSubdomain } from '../utils/csvTemplates'
 
 interface Subdomain {
   subdomain_id: number
@@ -24,11 +24,15 @@ export default function DomainView() {
   const [subdomains, setSubdomains] = useState<Subdomain[]>([])
   const [selectedSubdomain, setSelectedSubdomain] = useState<Subdomain | null>(null)
   const [entries, setEntries] = useState<SubdomainEntry[]>([])
-  const [uploadOpen, setUploadOpen] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
   const [loading, setLoading] = useState(true)
   const [entriesLoading, setEntriesLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isAddingEntry, setIsAddingEntry] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const decodedDomainKey = domainKey ? decodeURIComponent(domainKey) : ''
   const domainConfig = getDomainConfig(decodedDomainKey)
@@ -81,8 +85,75 @@ export default function DomainView() {
   // Manual refresh function
   const handleRefresh = async () => {
     setIsRefreshing(true)
+    // Reset edit mode and selections on refresh
+    setIsEditMode(false)
+    setSelectedEntries(new Set())
     await fetchEntries()
     setTimeout(() => setIsRefreshing(false), 500)
+  }
+
+  // Toggle entry selection
+  const handleToggleEntry = (entryId: number) => {
+    setSelectedEntries(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(entryId)) {
+        newSet.delete(entryId)
+      } else {
+        newSet.add(entryId)
+      }
+      return newSet
+    })
+  }
+
+  // Select all entries
+  const handleSelectAll = () => {
+    if (selectedEntries.size === entries.length) {
+      setSelectedEntries(new Set())
+    } else {
+      setSelectedEntries(new Set(entries.map(e => e.entry_id)))
+    }
+  }
+
+  // Delete selected entries
+  const handleDeleteSelected = () => {
+    if (selectedEntries.size === 0) {
+      setToast({ message: 'No entries selected', type: 'warning' })
+      return
+    }
+    setShowDeleteConfirm(true)
+  }
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    try {
+      setIsDeleting(true)
+      const tableName = getEntryTableName(selectedSubdomain!.subdomain_name)
+      
+      if (!tableName) {
+        setToast({ message: 'Failed to delete entries', type: 'error' })
+        setShowDeleteConfirm(false)
+        return
+      }
+
+      // Delete each selected entry
+      const deletePromises = Array.from(selectedEntries).map(entryId =>
+        axiosClient.delete(`/api/${tableName}/${entryId}`)
+      )
+
+      await Promise.all(deletePromises)
+
+      setToast({ message: `Successfully deleted ${selectedEntries.size} ${selectedEntries.size === 1 ? 'entry' : 'entries'}`, type: 'success' })
+      setSelectedEntries(new Set())
+      setIsEditMode(false)
+      setShowDeleteConfirm(false)
+      await fetchEntries()
+    } catch (error) {
+      console.error('Failed to delete entries:', error)
+      setToast({ message: 'Failed to delete some entries. Please try again.', type: 'error' })
+      setShowDeleteConfirm(false)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   // Fetch subdomains for the selected domain
@@ -92,6 +163,10 @@ export default function DomainView() {
       
       try {
         setLoading(true)
+        // Reset edit mode and selections when domain changes
+        setIsEditMode(false)
+        setSelectedEntries(new Set())
+        
         const fetchedSubdomains = await getSubdomains(domainConfig.domainId)
         setSubdomains(fetchedSubdomains)
 
@@ -110,34 +185,25 @@ export default function DomainView() {
 
   // Fetch entries when subdomain is selected
   useEffect(() => {
+    // Reset edit mode and selections when subdomain changes
+    setIsEditMode(false)
+    setSelectedEntries(new Set())
     void fetchEntries()
   }, [fetchEntries])
 
-  // Auto-refresh polling every 10 seconds
+  // Auto-refresh polling every 2 minutes (but pause when user is adding entry)
   useEffect(() => {
+    if (isAddingEntry) {
+      // Don't auto-refresh when user is actively adding an entry
+      return
+    }
+
     const pollInterval = setInterval(() => {
       void fetchEntries()
-    }, 10000) // Poll every 10 seconds
+    }, 120000) // Poll every 2 minutes (120000 ms)
 
     return () => clearInterval(pollInterval)
-  }, [fetchEntries])
-
-  const handleUploadComplete = async (uploadedItems: any[]) => {
-    // Refresh entries after upload
-    if (selectedSubdomain) {
-      const tableName = getEntryTableName(selectedSubdomain.subdomain_name)
-      if (tableName) {
-        try {
-          const response = await axiosClient.get(`/api/${tableName}`)
-          setEntries(response.data || [])
-          setToast({ message: 'Items uploaded successfully!', type: 'success' })
-        } catch (error) {
-          setToast({ message: 'Items uploaded but failed to refresh list.', type: 'warning' })
-        }
-      }
-    }
-    setUploadOpen(false)
-  }
+  }, [fetchEntries, isAddingEntry])
 
   if (loading) {
     return (
@@ -220,38 +286,6 @@ export default function DomainView() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               </button>
-              {selectedSubdomain && (
-                <>
-                  <button 
-                    onClick={() => {
-                      const listType = selectedSubdomain.subdomain_name;
-                      const templateType = getListTypeFromSubdomain(listType);
-                      if (templateType) {
-                        downloadSampleCSV(templateType);
-                        setToast({ message: 'Sample CSV downloaded successfully!', type: 'success' });
-                      } else {
-                        setToast({ message: 'No sample template available for this list type', type: 'warning' });
-                      }
-                    }}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-                    title="Download sample CSV template"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Download Sample CSV
-                  </button>
-                  <button 
-                    onClick={() => setUploadOpen(true)}
-                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    Bulk Upload
-                  </button>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -268,6 +302,9 @@ export default function DomainView() {
                 onChange={(e) => {
                   const subdomain = subdomains.find(s => s.subdomain_id === Number(e.target.value))
                   setSelectedSubdomain(subdomain || null)
+                  // Reset edit mode and selections when subdomain changes
+                  setIsEditMode(false)
+                  setSelectedEntries(new Set())
                 }}
                 className="w-full h-14 pl-4 pr-12 appearance-none rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-700 font-medium focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all duration-200 cursor-pointer text-lg"
                 disabled={subdomains.length === 0}
@@ -305,7 +342,67 @@ export default function DomainView() {
                   <h2 className="text-2xl font-bold text-slate-800">{selectedSubdomain.subdomain_name}</h2>
                   <p className="text-slate-500 mt-1">
                     {entriesLoading ? 'Loading...' : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
+                    {isEditMode && selectedEntries.size > 0 && (
+                      <span className="ml-2 text-primary font-semibold">({selectedEntries.size} selected)</span>
+                    )}
                   </p>
+                </div>
+                {/* Action Buttons - Top Right */}
+                <div className="flex items-center gap-2">
+                  {isEditMode ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setIsEditMode(false)
+                          setSelectedEntries(new Set())
+                        }}
+                        className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDeleteSelected}
+                        disabled={selectedEntries.size === 0 || isDeleting}
+                        className="px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+                      >
+                        {isDeleting ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete Selected
+                          </>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setIsEditMode(true)}
+                        className="px-5 py-2.5 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
+                      </button>
+                      <InlineAddEntry
+                        columns={columns}
+                        tableName={getEntryTableName(selectedSubdomain.subdomain_name) || ''}
+                        onEntryAdded={fetchEntries}
+                        onAddingStateChange={setIsAddingEntry}
+                        showAsButton={true}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -315,60 +412,80 @@ export default function DomainView() {
                 <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-secondary animate-spin border-4 border-transparent border-t-white"></div>
                 <p className="text-slate-600">Loading entries...</p>
               </div>
-            ) : entries.length === 0 ? (
-              <div className="p-12 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-2">No entries yet</h3>
-                <p className="text-slate-500 mb-4">Upload a CSV file to add entries to this list</p>
-                <button
-                  onClick={() => setUploadOpen(true)}
-                  className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all"
-                >
-                  Upload CSV
-                </button>
-              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      {columns.map((column) => (
-                        <th key={column} className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          {column.replace(/_/g, ' ')}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {entries.map((entry) => (
-                      <tr key={entry.entry_id} className="hover:bg-slate-50 transition-colors">
-                        {columns.map((column) => (
-                          <td key={column} className="px-6 py-4 text-sm text-slate-700">
-                            {entry[column] !== null && entry[column] !== undefined ? String(entry[column]) : '-'}
-                          </td>
+              <>
+                {entries.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                      <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800 mb-2">No entries yet</h3>
+                    <p className="text-slate-500 mb-4">Click the button below to add your first entry</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          {isEditMode && (
+                            <th className="px-4 py-4 text-left w-12">
+                              <input
+                                type="checkbox"
+                                checked={entries.length > 0 && selectedEntries.size === entries.length}
+                                onChange={handleSelectAll}
+                                className="w-5 h-5 text-primary border-slate-300 rounded focus:ring-2 focus:ring-primary cursor-pointer"
+                              />
+                            </th>
+                          )}
+                          {columns.map((column) => (
+                            <th key={column} className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              {column.replace(/_/g, ' ')}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {entries.map((entry) => (
+                          <tr key={entry.entry_id} className="hover:bg-slate-50 transition-colors">
+                            {isEditMode && (
+                              <td className="px-4 py-4 w-12">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedEntries.has(entry.entry_id)}
+                                  onChange={() => handleToggleEntry(entry.entry_id)}
+                                  className="w-5 h-5 text-primary border-slate-300 rounded focus:ring-2 focus:ring-primary cursor-pointer"
+                                />
+                              </td>
+                            )}
+                            {columns.map((column) => (
+                              <td key={column} className="px-6 py-4 text-sm text-slate-700">
+                                {entry[column] !== null && entry[column] !== undefined ? String(entry[column]) : '-'}
+                              </td>
+                            ))}
+                          </tr>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* Form appears here when adding - only show form, not button */}
+            {isAddingEntry && selectedSubdomain && (
+              <InlineAddEntry
+                columns={columns}
+                tableName={getEntryTableName(selectedSubdomain.subdomain_name) || ''}
+                onEntryAdded={fetchEntries}
+                onAddingStateChange={setIsAddingEntry}
+                showAsButton={false}
+              />
             )}
           </div>
         )}
       </main>
-
-      {/* CSV Upload Modal */}
-      {selectedSubdomain && (
-        <CSVUploadModal
-          isOpen={uploadOpen}
-          onClose={() => setUploadOpen(false)}
-          onComplete={handleUploadComplete}
-        />
-      )}
 
       {/* Toast Notification */}
       {toast && (
@@ -376,6 +493,20 @@ export default function DomainView() {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <ConfirmModal
+          title="Delete Entries"
+          message={`Are you sure you want to delete ${selectedEntries.size} ${selectedEntries.size === 1 ? 'entry' : 'entries'}? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmColor="red"
+          onConfirm={confirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+          isLoading={isDeleting}
         />
       )}
     </div>

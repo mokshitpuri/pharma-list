@@ -17,6 +17,7 @@ def get_lists(category: Optional[str] = None, subdomain_id: Optional[int] = None
     """
     Get all lists, optionally filtered by category or subdomain_id
     Maps to list_requests table with subdomain information
+    Only returns lists that have actual entries (non-empty lists)
     """
     sb = _get_supabase()
     try:
@@ -29,13 +30,44 @@ def get_lists(category: Optional[str] = None, subdomain_id: Optional[int] = None
         resp = query.limit(limit).order('created_at', desc=True).execute()
         lists = resp.data if hasattr(resp, 'data') else resp
         
-        # For each list, get the latest version info (filter by is_current=True)
+        # Table mapping for subdomain entries
+        table_mapping = {
+            'Target Lists': 'target_list_entries',
+            'Call Lists': 'call_list_entries',
+            'Formulary Decision-Maker Lists': 'formulary_decision_maker_entries',
+            'IDN/Health System Lists': 'idn_health_system_entries',
+            'Event Invitation Lists': 'event_invitation_entries',
+            'Digital Engagement Lists': 'digital_engagement_entries',
+            'High-Value Prescriber Lists': 'high_value_prescriber_entries',
+            'Competitor Target Lists': 'competitor_target_entries'
+        }
+        
+        # Filter to only include lists with entries
+        filtered_lists = []
         for list_item in lists:
             version_resp = sb.table('list_versions').select('*').eq('request_id', list_item['request_id']).eq('is_current', True).order('version_number', desc=True).limit(1).execute()
             if version_resp.data and len(version_resp.data) > 0:
                 list_item['current_version'] = version_resp.data[0]
+                
+                # Check if this list has actual entries
+                if list_item.get('subdomains'):
+                    subdomain_name = list_item['subdomains']['subdomain_name']
+                    entry_table = table_mapping.get(subdomain_name)
+                    
+                    if entry_table:
+                        # Check if there are entries for this version
+                        entries_resp = sb.table(entry_table).select('entry_id', count='exact').eq('version_id', version_resp.data[0]['version_id']).limit(1).execute()
+                        # Only include this list if it has entries
+                        if entries_resp.count and entries_resp.count > 0:
+                            filtered_lists.append(list_item)
+                    else:
+                        # If no entry table mapping, include it anyway
+                        filtered_lists.append(list_item)
+                else:
+                    # If no subdomain info, include it anyway
+                    filtered_lists.append(list_item)
         
-        return lists
+        return filtered_lists
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -349,6 +381,31 @@ def get_work_logs_by_domain(domain_id: int, limit: int = 100):
         return work_logs
     except Exception as e:
         print(f"[ERROR] Exception in get_work_logs_by_domain: {str(e)}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get('/domain/{domain_id}/versions', response_model=List[Dict[str, Any]])
+def get_versions_by_domain(domain_id: int, limit: int = 100):
+    """
+    Get all list versions for a specific domain
+    Joins list_versions with list_requests and subdomains to filter by domain_id
+    """
+    sb = _get_supabase()
+    try:
+        # Query list_versions and join with list_requests and subdomains
+        # to filter by domain_id
+        resp = sb.table('list_versions').select(
+            '*, list_requests!inner(request_id, requester_name, request_purpose, status, created_at, subdomains!inner(subdomain_id, subdomain_name, domain_id))'
+        ).eq('list_requests.subdomains.domain_id', domain_id).order(
+            'created_at', desc=True
+        ).limit(limit).execute()
+        
+        versions = resp.data if hasattr(resp, 'data') else resp
+        
+        return versions
+    except Exception as e:
+        print(f"[ERROR] Exception in get_versions_by_domain: {str(e)}")
         import traceback
         print(f"[ERROR] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))

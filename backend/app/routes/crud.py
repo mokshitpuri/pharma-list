@@ -10,6 +10,40 @@ def _get_supabase():
         supabase = get_supabase_client()
     return supabase
 
+def _get_or_create_default_version(sb) -> int:
+    """Get or create a default version ID for standalone entries."""
+    try:
+        # Try to find a default standalone version (version_number = 0)
+        resp = sb.table('list_versions').select('version_id').eq('version_number', 0).limit(1).execute()
+        if resp.data and len(resp.data) > 0:
+            return resp.data[0]['version_id']
+        
+        # If no default exists, try to get any existing version
+        resp = sb.table('list_versions').select('version_id').limit(1).execute()
+        if resp.data and len(resp.data) > 0:
+            return resp.data[0]['version_id']
+        
+        # If no versions exist at all, we have a problem - return None and let it fail with clear error
+        return None
+    except Exception as e:
+        print(f"Error getting default version: {e}")
+        return None
+
+def _prepare_entry_data(item: Dict[str, Any], sb=None) -> Dict[str, Any]:
+    """Prepare entry data for insertion by setting defaults for required fields."""
+    # If version_id not provided, try to get a default one
+    if 'version_id' not in item or item['version_id'] == '' or item['version_id'] is None:
+        if sb:
+            default_version_id = _get_or_create_default_version(sb)
+            if default_version_id:
+                item['version_id'] = default_version_id
+            else:
+                # Remove it and let the database error be more specific
+                item.pop('version_id', None)
+        else:
+            item.pop('version_id', None)
+    return item
+
 routers = []
 
 call_list_entries_router = APIRouter(prefix='/call_list_entries', tags=['call_list_entries'])
@@ -26,6 +60,7 @@ def list_call_list_entries(limit: int = 100):
 def create_call_list_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('call_list_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -79,6 +114,7 @@ def list_competitor_target_entries(limit: int = 100):
 def create_competitor_target_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('competitor_target_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -132,6 +168,7 @@ def list_digital_engagement_entries(limit: int = 100):
 def create_digital_engagement_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('digital_engagement_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -238,6 +275,7 @@ def list_event_invitation_entries(limit: int = 100):
 def create_event_invitation_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('event_invitation_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -291,6 +329,7 @@ def list_formulary_decision_maker_entries(limit: int = 100):
 def create_formulary_decision_maker_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('formulary_decision_maker_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -344,6 +383,7 @@ def list_high_value_prescriber_entries(limit: int = 100):
 def create_high_value_prescriber_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('high_value_prescriber_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -397,6 +437,7 @@ def list_idn_health_system_entries(limit: int = 100):
 def create_idn_health_system_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('idn_health_system_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -438,14 +479,23 @@ routers.append(idn_health_system_entries_router)
 
 list_requests_router = APIRouter(prefix='/list_requests', tags=['list_requests'])
 @list_requests_router.get('/', response_model=List[Dict[str, Any]])
-def list_list_requests(limit: int = 100, subdomain_id: Optional[int] = None):
+def list_list_requests(limit: int = 100, subdomain_id: Optional[int] = None, domain_id: Optional[int] = None):
     sb = _get_supabase()
     try:
-        query = sb.table('list_requests').select('*')
-        if subdomain_id is not None:
-            query = query.eq('subdomain_id', subdomain_id)
-        resp = query.limit(limit).execute()
-        return resp.data if hasattr(resp, 'data') else resp
+        # If domain_id is provided, join with subdomains to filter
+        if domain_id is not None:
+            query = sb.table('list_requests').select('*, subdomains(*)')
+            resp = query.limit(limit).execute()
+            data = resp.data if hasattr(resp, 'data') else resp
+            # Filter by domain_id from joined subdomain data
+            filtered_data = [item for item in data if item.get('subdomains') and item['subdomains'].get('domain_id') == domain_id]
+            return filtered_data
+        else:
+            query = sb.table('list_requests').select('*')
+            if subdomain_id is not None:
+                query = query.eq('subdomain_id', subdomain_id)
+            resp = query.limit(limit).execute()
+            return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -615,6 +665,7 @@ def list_target_list_entries(limit: int = 100):
 def create_target_list_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
+        item = _prepare_entry_data(item)
         resp = sb.table('target_list_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:

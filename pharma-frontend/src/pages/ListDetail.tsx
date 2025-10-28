@@ -1,16 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getListDetail, addItemsToList, deleteList } from '../api/listApi'
-import CSVUploadModal from '../components/CSVUploadModal'
+import { getListDetail, deleteList } from '../api/listApi'
+import InlineAddEntry from '../components/InlineAddEntry'
 import Toast from '../components/Toast'
 import { getDomainDisplayName, migrateDomainName } from '../constants/domains'
-import { downloadSampleCSV, getListTypeFromSubdomain } from '../utils/csvTemplates'
 
 export default function ListDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [list, setList] = useState<any>(null)
-  const [uploadOpen, setUploadOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -31,11 +29,11 @@ export default function ListDetail() {
     void fetchListDetail()
   }, [fetchListDetail])
 
-  // Auto-refresh polling every 10 seconds
+  // Auto-refresh polling every 2 minutes
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void fetchListDetail()
-    }, 10000) // Poll every 10 seconds
+    }, 120000) // Poll every 2 minutes (120000 ms)
 
     return () => clearInterval(pollInterval)
   }, [fetchListDetail])
@@ -69,7 +67,7 @@ export default function ListDetail() {
   )
 
   // Map backend fields to display fields
-  const displayTitle = list.purpose || list.title || 'Untitled List'
+  const displayTitle = list.subdomain?.subdomain_name || list.request_purpose || list.purpose || list.title || 'Untitled List'
   const rawCategory = list.category || list.domain || 'General'
   const migratedCategory = migrateDomainName(rawCategory)
   const displayCategory = getDomainDisplayName(migratedCategory)
@@ -102,36 +100,6 @@ export default function ListDetail() {
               Back to Dashboard
             </button>
             <div className="flex gap-3">
-              <button 
-                onClick={() => {
-                  const listType = list.subdomain?.subdomain_name;
-                  if (listType) {
-                    const templateType = getListTypeFromSubdomain(listType);
-                    if (templateType) {
-                      downloadSampleCSV(templateType);
-                      setToast({ message: 'Sample CSV downloaded successfully!', type: 'success' });
-                    } else {
-                      setToast({ message: 'No sample template available for this list type', type: 'warning' });
-                    }
-                  }
-                }}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-                title="Download sample CSV template"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download Sample CSV
-              </button>
-              <button 
-                onClick={() => setUploadOpen(true)}
-                className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Bulk Upload
-              </button>
               <button 
                 onClick={() => setShowDeleteConfirm(true)}
                 className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
@@ -248,16 +216,7 @@ export default function ListDetail() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-slate-700 mb-2">No items yet</h3>
-              <p className="text-slate-500 mb-4">Upload a CSV file to add items to this list</p>
-              <button 
-                onClick={() => setUploadOpen(true)}
-                className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105 inline-flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Upload CSV
-              </button>
+              <p className="text-slate-500 mb-4">Click the button below to add your first item</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -290,33 +249,18 @@ export default function ListDetail() {
               </table>
             </div>
           )}
+          
+          {/* Inline Add Entry Component - Note: This is a placeholder for list detail page */}
+          {/* We need a table name that corresponds to the list's subdomain */}
+          {list.subdomain && tableColumns.length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <p className="text-sm text-slate-500 px-6 mb-4">
+                Note: Adding entries here is currently not supported in list detail view. Please use the domain view to add entries.
+              </p>
+            </div>
+          )}
         </div>
       </main>
-
-      {uploadOpen && <CSVUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} onAdd={async (rows: any) => {
-        try {
-          console.log('[DEBUG] Starting to add items to list:', id);
-          console.log('[DEBUG] Number of rows:', rows.length);
-          console.log('[DEBUG] Sample row:', rows[0]);
-          
-          const result = await addItemsToList(id!, rows);
-          console.log('[DEBUG] Add items result:', result);
-          
-          console.log('[DEBUG] Fetching updated list detail...');
-          const updated = await getListDetail(id!);
-          console.log('[DEBUG] Updated list data:', updated);
-          console.log('[DEBUG] Current snapshot:', updated.current_snapshot);
-          console.log('[DEBUG] Items count:', updated.current_snapshot?.items?.length || 0);
-          
-          setList(updated);
-          setUploadOpen(false);
-          setToast({ message: 'Items added successfully!', type: 'success' });
-        } catch (error) {
-          console.error('[ERROR] Failed to add items:', error);
-          console.error('[ERROR] Error details:', error);
-          setToast({ message: 'Failed to add items. Please try again.', type: 'error' });
-        }
-      }} />}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

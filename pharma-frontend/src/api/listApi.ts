@@ -14,7 +14,14 @@ export async function getLists(category?: string, subdomainId?: number): Promise
     if (category) params.category = category
     if (subdomainId) params.subdomain_id = subdomainId
     
-    const response = await axiosClient.get('/api/lists', { params })
+    const response = await axiosClient.get('/api/lists', { 
+      params,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
     return response.data
   } catch (error) {
     console.error('Error fetching lists:', error)
@@ -162,6 +169,22 @@ export async function getWorkLogsByDomain(domainId: number, limit?: number): Pro
 }
 
 /**
+ * Get version history for all lists in a specific domain
+ */
+export async function getVersionsByDomain(domainId: number, limit?: number): Promise<any[]> {
+  try {
+    const params: any = {}
+    if (limit) params.limit = limit
+    
+    const response = await axiosClient.get(`/api/lists/domain/${domainId}/versions`, { params })
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching versions for domain ${domainId}:`, error)
+    throw error
+  }
+}
+
+/**
  * Add a work log entry
  */
 export async function addWorkLog(payload: {
@@ -204,6 +227,22 @@ export async function getListsBySubdomain(subdomainId: number): Promise<any[]> {
     return response.data
   } catch (error) {
     console.error(`Error fetching lists for subdomain ${subdomainId}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Get list requests by domain_id
+ */
+export async function getListRequestsByDomain(domainId: number, limit?: number): Promise<ListSummary[]> {
+  try {
+    const params: any = { domain_id: domainId }
+    if (limit) params.limit = limit
+    
+    const response = await axiosClient.get('/api/list_requests', { params })
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching list requests for domain ${domainId}:`, error)
     throw error
   }
 }

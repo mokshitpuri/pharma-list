@@ -176,7 +176,7 @@ export default function DomainHistoryPage() {
                         </h3>
                         {log.list_requests && (
                           <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <span className="font-medium">List:</span>
+                            <span className="font-medium">Request Purpose:</span>
                             <span className="px-2 py-1 bg-slate-100 rounded-lg">
                               {log.list_requests.request_purpose}
                             </span>
@@ -213,7 +213,18 @@ export default function DomainHistoryPage() {
 
                     {/* Metadata */}
                     <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-                      {log.request_id && (
+                      {log.list_requests?.requester_name && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Requester:</span>
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded font-medium">
+                            {log.list_requests.requester_name}
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="font-medium">ID:</span>
+                          <span>{log.request_id}</span>
+                        </div>
+                      )}
+                      {!log.list_requests?.requester_name && log.request_id && (
                         <div className="flex items-center gap-1">
                           <span className="font-medium">Request ID:</span>
                           <span>{log.request_id}</span>
