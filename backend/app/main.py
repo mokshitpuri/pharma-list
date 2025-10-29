@@ -11,17 +11,13 @@ from app.routes import router as api_router
 from app.core.config import settings
 from app.core.database import get_supabase_client
 
-# ==============================
-# 🔹 Configure APIs
-# ==============================
+# Configure APIs
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # Configure ChatAI/OpenAI client
 client = OpenAI(api_key=settings.CHATAI_API_KEY)
 
-# ==============================
-# 🔹 Define Graph State for RAG
-# ==============================
+# Define Graph State for RAG
 class RAGState(TypedDict):
     question: str
     chat_history: List[Dict[str, str]]
@@ -31,9 +27,7 @@ class RAGState(TypedDict):
     final_answer: str
     last_retrieved_content: str  # Store last retrieved docs for follow-ups
 
-# ==============================
-# 🔹 RAG Pipeline Functions
-# ==============================
+# RAG Pipeline Functions
 def embed_query(state: RAGState):
     """Generate embedding considering conversation context."""
     try:
@@ -54,7 +48,7 @@ def embed_query(state: RAGState):
         )
         state["query_embedding"] = response["embedding"]
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in embed_query: {e}")
         state["query_embedding"] = []
     return state
 
@@ -84,7 +78,7 @@ def retrieve_docs(state: RAGState):
         state["retrieved_docs"] = relevant_docs
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in retrieve_docs: {e}")
         state["retrieved_docs"] = []
     return state
 
@@ -122,7 +116,7 @@ def compose_context(state: RAGState):
             state["context_text"] = f"No relevant information available.\n\nQuestion: {state['question']}"
             
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in compose_context: {e}")
         state["context_text"] = state["question"]
     return state
 
@@ -170,14 +164,12 @@ Answer the current question naturally, using conversation history to understand 
         state["final_answer"] = response.choices[0].message.content
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in generate_answer: {e}")
         state["final_answer"] = "I encountered an error. Please try again."
     return state
 
 
-# ==============================
-# 🔹 Build the LangGraph RAG Workflow
-# ==============================
+# Build the LangGraph RAG Workflow
 def build_rag_graph():
     builder = StateGraph(RAGState)
     builder.add_node("embed_query", embed_query)
@@ -194,9 +186,7 @@ def build_rag_graph():
 
 graph = build_rag_graph()
 
-# ==============================
-# 🔹 FastAPI Application Setup
-# ==============================
+# FastAPI Application Setup
 app = FastAPI(title="Supabase FastAPI + Pydantic API + RAG Bot")
 
 # Configure CORS
@@ -212,9 +202,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==============================
-# 🔹 Request & Response Models
-# ==============================
+# Request & Response Models
 class ChatMessage(BaseModel):
     user: str
     assistant: str
@@ -227,12 +215,10 @@ class QueryResponse(BaseModel):
     answer: str
     retrieved_count: Optional[int] = 0
 
-# ==============================
-# 🔹 API Endpoints
-# ==============================
+# API Endpoints
 @app.get("/")
 def home():
-    return {"message": "✅ FastAPI + Supabase + Gemini Bot running"}
+    return {"message": "FastAPI + Supabase + Gemini Bot running"}
 
 @app.post("/api/query", response_model=QueryResponse)
 def ask_bot(request: QueryRequest):

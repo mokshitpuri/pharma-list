@@ -107,7 +107,7 @@ DG001,Dr. Rajesh Kumar,rajesh.kumar@apollo.com,Cardiology,TRUE
 
 ---
 
-### 📊 Data/Analytics Lists
+### Data/Analytics Lists
 
 #### 7. High-Value Prescriber Lists (`high_value_prescriber_lists.csv`)
 **Purpose**: Track high-revenue generating prescribers  
@@ -145,7 +145,7 @@ HCP011,Dr. Ramesh Patel,Cardiology,North Delhi,CompetitorX CardioMed,High,Arjun 
 
 ---
 
-## 🔧 Usage Instructions
+## Usage Instructions
 
 ### How to Use These Templates
 
@@ -158,7 +158,7 @@ HCP011,Dr. Ramesh Patel,Cardiology,North Delhi,CompetitorX CardioMed,High,Arjun 
 
 ### Important Notes
 
-⚠️ **Critical Requirements**:
+**Critical Requirements**:
 - **Do NOT modify column headers** - They must match exactly as shown
 - **Do NOT change column order** - Keep columns in the same sequence
 - **Required fields must have values** - Fields marked as "Required" cannot be empty
@@ -168,14 +168,14 @@ HCP011,Dr. Ramesh Patel,Cardiology,North Delhi,CompetitorX CardioMed,High,Arjun 
 
 ### Common Mistakes to Avoid
 
-❌ **Don't**:
+**Don't**:
 - Add extra columns not in the template
 - Remove required columns
 - Use different date formats (e.g., MM/DD/YYYY, DD-MM-YYYY)
 - Include column headers in data rows
 - Use Excel formulas or formatting
 
-✅ **Do**:
+**Do**:
 - Keep all column headers exactly as provided
 - Leave optional fields empty if you don't have data
 - Use consistent naming conventions
@@ -184,7 +184,7 @@ HCP011,Dr. Ramesh Patel,Cardiology,North Delhi,CompetitorX CardioMed,High,Arjun 
 
 ---
 
-## 📝 Field Validation Rules
+## Field Validation Rules
 
 ### Common Field Types
 
@@ -208,7 +208,7 @@ HCP011,Dr. Ramesh Patel,Cardiology,North Delhi,CompetitorX CardioMed,High,Arjun 
 
 ---
 
-## 🚀 Quick Start Guide
+## Quick Start Guide
 
 1. **Identify Your List Type**: Determine which domain and list type you need
 2. **Download Template**: Get the corresponding CSV template from this directory
@@ -233,7 +233,7 @@ For technical support, contact your system administrator.
 
 ---
 
-## 🔄 Version Information
+## Version Information
 
 **Last Updated**: October 27, 2025  
 **Schema Version**: 1.0  
@@ -241,9 +241,10 @@ For technical support, contact your system administrator.
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Database Schema Reference](../backend/app/schemas/)
 - [API Documentation](../backend/README.md)
 - [User Guide](../README.md)
 - [Integration Guide](../INTEGRATION.md)
+

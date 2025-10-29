@@ -2,13 +2,13 @@
 
 A comprehensive pharmaceutical list management system for tracking healthcare professionals, institutions, events, and analytics across multiple domains.
 
-## 📂 Project Structure
+## Project Structure
 
 - **`backend/`** - FastAPI backend server
 - **`pharma-frontend/`** - React TypeScript frontend
 - **`sample-csv-templates/`** - Standardized CSV templates for all list types
 
-## 🚀 Quick Start
+## Quick Start
 
 ### CSV Templates
 
@@ -30,22 +30,22 @@ Pre-defined CSV templates are available in the `/sample-csv-templates` directory
    - High-Value Prescriber Lists
    - Competitor Target Lists
 
-📖 **[View CSV Template Documentation](./sample-csv-templates/README.md)**
+**[View CSV Template Documentation](./sample-csv-templates/README.md)**
 
-## 🔧 Setup Instructions
+## Setup Instructions
 
 See individual README files in `backend/` and `pharma-frontend/` for detailed setup instructions.
 
-## 📝 Features
+## Features
 
-- ✅ Multi-domain list management
-- ✅ Bulk CSV upload with validation
-- ✅ Auto-refresh for real-time updates
-- ✅ Standardized data formats
-- ✅ Domain-specific list types
-- ✅ Version control for list entries
+- Multi-domain list management
+- Bulk CSV upload with validation
+- Auto-refresh for real-time updates
+- Standardized data formats
+- Domain-specific list types
+- Version control for list entries
 
-## 📚 Documentation
+## Documentation
 
 - [Integration Guide](./INTEGRATION.md)
 - [Backend Documentation](./backend/README.md)

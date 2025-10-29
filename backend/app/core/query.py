@@ -27,9 +27,7 @@ class RAGState(TypedDict):
     last_retrieved_content: str  # Store last retrieved docs for follow-ups
 
 
-# ==============================
-# 1️⃣ Generate Embedding with Context
-# ==============================
+# Generate Embedding with Context
 def embed_query(state: RAGState):
     """Generate embedding considering conversation context."""
     try:
@@ -50,14 +48,12 @@ def embed_query(state: RAGState):
         )
         state["query_embedding"] = response["embedding"]
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in embed_query: {e}")
         state["query_embedding"] = []
     return state
 
 
-# ==============================
-# 2️⃣ Retrieve from Supabase
-# ==============================
+# Retrieve from Supabase
 def retrieve_docs(state: RAGState):
     """Retrieve documents with smart filtering."""
     try:
@@ -82,14 +78,12 @@ def retrieve_docs(state: RAGState):
         state["retrieved_docs"] = relevant_docs
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in retrieve_docs: {e}")
         state["retrieved_docs"] = []
     return state
 
 
-# ==============================
-# 3️⃣ Compose Context Intelligently
-# ==============================
+# Compose Context Intelligently
 def compose_context(state: RAGState):
     """Smart context composition with memory."""
     try:
@@ -123,14 +117,12 @@ def compose_context(state: RAGState):
             state["context_text"] = f"No relevant information available.\n\nQuestion: {state['question']}"
             
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in compose_context: {e}")
         state["context_text"] = state["question"]
     return state
 
 
-# ==============================
-# 4️⃣ Generate Answer with Better Instructions
-# ==============================
+# Generate Answer with Better Instructions
 def generate_answer(state: RAGState):
     """Generate intelligent, context-aware answers."""
     try:
@@ -174,14 +166,12 @@ Answer the current question naturally, using conversation history to understand 
         state["final_answer"] = response.choices[0].message.content
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error in generate_answer: {e}")
         state["final_answer"] = "I encountered an error. Please try again."
     return state
 
 
-# ==============================
-# 5️⃣ Build the LangGraph RAG Pipeline
-# ==============================
+# Build the LangGraph RAG Pipeline
 def build_rag_graph():
     builder = StateGraph(RAGState)
     builder.add_node("embed_query", embed_query)
@@ -197,16 +187,14 @@ def build_rag_graph():
     return builder.compile()
 
 
-# ==============================
-# 6️⃣ Run Interactive Loop
-# ==============================
+# Run Interactive Loop
 if __name__ == "__main__":
     graph = build_rag_graph()
     chat_history = []
     last_retrieved_content = ""
 
     print("=" * 70)
-    print("🤖 Pharmaceutical Data Assistant")
+    print("Pharmaceutical Data Assistant")
     print("=" * 70)
     print("Ask me anything! Type 'exit' to quit, 'clear' to reset memory\n")
 

@@ -54,10 +54,10 @@ def test_table_constraints():
             if resp.data:
                 entry_id = resp.data[0]['entry_id']
                 sb.table('formulary_decision_maker_entries').delete().eq('entry_id', entry_id).execute()
-                print(f"   ✅ '{val}' - VALID")
+                print(f"   '{val}' - VALID")
         except Exception as e:
             if 'check constraint' in str(e).lower():
-                print(f"   ❌ '{val}' - REJECTED by constraint")
+                print(f"   '{val}' - REJECTED by constraint")
     
     # Test competitor_target_entries - conversion_potential
     print("\n2. Testing competitor_target_entries - conversion_potential field:")
@@ -77,10 +77,10 @@ def test_table_constraints():
             if resp.data:
                 entry_id = resp.data[0]['entry_id']
                 sb.table('competitor_target_entries').delete().eq('entry_id', entry_id).execute()
-                print(f"   ✅ '{val}' - VALID")
+                print(f"   '{val}' - VALID")
         except Exception as e:
             if 'check constraint' in str(e).lower():
-                print(f"   ❌ '{val}' - REJECTED by constraint")
+                print(f"   '{val}' - REJECTED by constraint")
     
     # Clean up
     sb.table('list_versions').delete().eq('version_id', version_id).execute()

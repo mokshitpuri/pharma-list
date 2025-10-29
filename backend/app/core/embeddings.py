@@ -107,10 +107,10 @@ def generate_embeddings_for_all_versions():
                 "embedding": embedding
             }).execute()
 
-            print(f"✅ Stored embedding for version {v['version_id']}\n")
+            print(f"Stored embedding for version {v['version_id']}\n")
 
         except Exception as e:
-            print(f"❌ Error processing version {v.get('version_id', 'N/A')}: {e}")
+            print(f"Error processing version {v.get('version_id', 'N/A')}: {e}")
 
 if __name__ == "__main__":
     generate_embeddings_for_all_versions()
