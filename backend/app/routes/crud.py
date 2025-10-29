@@ -168,7 +168,7 @@ def list_digital_engagement_entries(limit: int = 100):
 def create_digital_engagement_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('digital_engagement_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -275,7 +275,7 @@ def list_event_invitation_entries(limit: int = 100):
 def create_event_invitation_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('event_invitation_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -329,7 +329,7 @@ def list_formulary_decision_maker_entries(limit: int = 100):
 def create_formulary_decision_maker_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('formulary_decision_maker_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -383,7 +383,7 @@ def list_high_value_prescriber_entries(limit: int = 100):
 def create_high_value_prescriber_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('high_value_prescriber_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -437,7 +437,7 @@ def list_idn_health_system_entries(limit: int = 100):
 def create_idn_health_system_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('idn_health_system_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
@@ -665,7 +665,7 @@ def list_target_list_entries(limit: int = 100):
 def create_target_list_entries(item: Dict[str, Any]):
     sb = _get_supabase()
     try:
-        item = _prepare_entry_data(item)
+        item = _prepare_entry_data(item, sb)
         resp = sb.table('target_list_entries').insert(item).execute()
         return resp.data if hasattr(resp, 'data') else resp
     except Exception as e:
