@@ -389,7 +389,6 @@ async def upload_csv_to_list(list_id: int, file: UploadFile = File(...), updated
         }
 
         
-        from app.app.routes.lists import add_items_to_list 
         return add_items_to_list(list_id=list_id, payload=payload)
 
     except HTTPException:
