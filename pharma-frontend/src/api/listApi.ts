@@ -1,13 +1,6 @@
-/**
- * List API - Connected to FastAPI backend
- */
-
 import axiosClient from './axiosClient'
 import type { ListSummary, ListDetail, ListVersion, WorkLog } from '../types'
 
-/**
- * Get all lists, optionally filtered by category or subdomain
- */
 export async function getLists(category?: string, subdomainId?: number): Promise<ListSummary[]> {
   try {
     const params: any = {}
@@ -29,9 +22,6 @@ export async function getLists(category?: string, subdomainId?: number): Promise
   }
 }
 
-/**
- * Get detailed information for a specific list
- */
 export async function getListDetail(id: string | number): Promise<ListDetail> {
   try {
     const response = await axiosClient.get(`/api/lists/${id}`)
@@ -42,9 +32,6 @@ export async function getListDetail(id: string | number): Promise<ListDetail> {
   }
 }
 
-/**
- * Create a new list
- */
 export async function createList(payload: {
   subdomain_id: number
   requester_name: string
@@ -60,9 +47,6 @@ export async function createList(payload: {
   }
 }
 
-/**
- * Update an existing list
- */
 export async function updateList(id: string | number, payload: {
   requester_name?: string
   request_purpose?: string
@@ -78,9 +62,6 @@ export async function updateList(id: string | number, payload: {
   }
 }
 
-/**
- * Add items to an existing list (creates a new version)
- */
 export async function addItemsToList(id: string | number, items: any[], updatedBy?: string): Promise<any> {
   try {
     const response = await axiosClient.post(`/api/lists/${id}/items`, {
@@ -94,9 +75,6 @@ export async function addItemsToList(id: string | number, items: any[], updatedB
   }
 }
 
-/**
- * Delete a list
- */
 export async function deleteList(id: string | number): Promise<{ success: boolean }> {
   try {
     await axiosClient.delete(`/api/lists/${id}`)
@@ -107,9 +85,6 @@ export async function deleteList(id: string | number): Promise<{ success: boolea
   }
 }
 
-/**
- * Get all versions for a specific list
- */
 export async function getListVersions(listId: string): Promise<ListVersion[]> {
   try {
     const response = await axiosClient.get(`/versions/${listId}`)
@@ -120,9 +95,6 @@ export async function getListVersions(listId: string): Promise<ListVersion[]> {
   }
 }
 
-/**
- * Create a new version for a list
- */
 export async function createVersion(payload: {
   list_id: string
   version_number: number
@@ -139,9 +111,6 @@ export async function createVersion(payload: {
   }
 }
 
-/**
- * Get work logs for a specific list
- */
 export async function getWorkLogs(listId: string): Promise<WorkLog[]> {
   try {
     const response = await axiosClient.get(`/worklogs/${listId}`)
@@ -152,9 +121,6 @@ export async function getWorkLogs(listId: string): Promise<WorkLog[]> {
   }
 }
 
-/**
- * Get work logs for all lists in a specific domain
- */
 export async function getWorkLogsByDomain(domainId: number, limit?: number): Promise<WorkLog[]> {
   try {
     const params: any = {}
@@ -168,9 +134,6 @@ export async function getWorkLogsByDomain(domainId: number, limit?: number): Pro
   }
 }
 
-/**
- * Get version history for all lists in a specific domain
- */
 export async function getVersionsByDomain(domainId: number, limit?: number): Promise<any[]> {
   try {
     const params: any = {}
@@ -184,9 +147,6 @@ export async function getVersionsByDomain(domainId: number, limit?: number): Pro
   }
 }
 
-/**
- * Add a work log entry
- */
 export async function addWorkLog(payload: {
   list_id: string
   action: string
@@ -201,9 +161,6 @@ export async function addWorkLog(payload: {
   }
 }
 
-/**
- * Get all subdomains, optionally filtered by domain_id
- */
 export async function getSubdomains(domainId?: number): Promise<any[]> {
   try {
     const response = await axiosClient.get('/api/subdomains', {
@@ -216,9 +173,6 @@ export async function getSubdomains(domainId?: number): Promise<any[]> {
   }
 }
 
-/**
- * Get lists by subdomain_id
- */
 export async function getListsBySubdomain(subdomainId: number): Promise<any[]> {
   try {
     const response = await axiosClient.get('/api/list_requests', {
@@ -231,9 +185,6 @@ export async function getListsBySubdomain(subdomainId: number): Promise<any[]> {
   }
 }
 
-/**
- * Get list requests by domain_id
- */
 export async function getListRequestsByDomain(domainId: number, limit?: number): Promise<ListSummary[]> {
   try {
     const params: any = { domain_id: domainId }

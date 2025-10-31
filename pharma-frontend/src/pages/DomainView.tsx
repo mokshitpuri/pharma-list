@@ -400,6 +400,7 @@ export default function DomainView() {
                         onEntryAdded={fetchEntries}
                         onAddingStateChange={setIsAddingEntry}
                         showAsButton={true}
+                        subdomainName={selectedSubdomain.subdomain_name}
                       />
                     </>
                   )}
@@ -481,6 +482,7 @@ export default function DomainView() {
                 onEntryAdded={fetchEntries}
                 onAddingStateChange={setIsAddingEntry}
                 showAsButton={false}
+                subdomainName={selectedSubdomain.subdomain_name}
               />
             )}
           </div>

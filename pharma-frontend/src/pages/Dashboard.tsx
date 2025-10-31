@@ -13,7 +13,6 @@ const Dashboard = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch lists function wrapped in useCallback
   const fetchLists = useCallback(async () => {
     try {
       const res = await getLists();
@@ -23,21 +22,18 @@ const Dashboard = () => {
     }
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     void fetchLists();
   }, [fetchLists]);
 
-  // Auto-refresh polling every 30 seconds for real-time sync
   useEffect(() => {
     const pollInterval = setInterval(() => {
       void fetchLists();
-    }, 30000); // Poll every 30 seconds for better sync
+    }, 30000);
 
     return () => clearInterval(pollInterval);
   }, [fetchLists]);
 
-  // Refresh when user returns to the tab
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -49,21 +45,17 @@ const Dashboard = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchLists]);
 
-  // Manual refresh function
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchLists();
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  // Calculate stats for each domain
   const getDomainStats = (domainKey: DomainKey) => {
     const domainConfig = DOMAIN_CONFIGS.find(d => d.key === domainKey);
     if (!domainConfig) return { count: 0, recentActivity: null };
     
-    // Filter lists that belong to this domain via subdomain
     const domainLists = lists.filter((list: any) => {
-      // Check if the list has subdomain data
       if (list.subdomain && list.subdomain.domain_id === domainConfig.domainId) {
         return true;
       }
@@ -82,16 +74,12 @@ const Dashboard = () => {
 
   const handleCreateList = async (title: string, domain: string) => {
     try {
-      // Get domain config to find domain_id
       const domainConfig = DOMAIN_CONFIGS.find(d => d.key === domain);
       if (!domainConfig) {
         setToast({ message: 'Invalid domain selected.', type: 'error' });
         return;
       }
 
-      // For now, we'll need to fetch subdomains to get the subdomain_id
-      // The 'title' parameter actually contains the list type (subdomain name)
-      // We need to find the matching subdomain
       try {
         const { getSubdomains } = await import('../api/listApi');
         const subdomains = await getSubdomains(domainConfig.domainId);
@@ -102,15 +90,13 @@ const Dashboard = () => {
           return;
         }
 
-        // Create the list with proper subdomain_id
         const newList = await createList({
           subdomain_id: matchingSubdomain.subdomain_id,
-          requester_name: 'Current User', // TODO: Get from auth context
+          requester_name: 'Current User',
           request_purpose: `${title} - ${new Date().toLocaleDateString()}`,
           status: 'In Progress'
         });
 
-        // Successfully created list
         if (newList?.request_id) {
           const updatedLists = await getLists();
           setLists(updatedLists);

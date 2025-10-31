@@ -1,11 +1,10 @@
-"""
-Custom Lists Router - Provides high-level list management endpoints
-Maps to list_requests table in Supabase
-"""
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 from app.core.database import get_supabase_client
 from typing import List, Dict, Any, Optional
+from fastapi import UploadFile, File
+import csv
+from io import StringIO
 
 router = APIRouter(prefix='/lists', tags=['lists'])
 
@@ -359,6 +358,45 @@ def add_items_to_list(list_id: int, payload: Dict[str, Any]):
         import traceback
         print(f"[ERROR] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.post('/{list_id}/upload-csv', status_code=status.HTTP_201_CREATED)
+async def upload_csv_to_list(list_id: int, file: UploadFile = File(...), updated_by: str = "CSV Upload"):
+    """
+    Bulk upload CSV file for a specific list_id
+    Parses CSV → creates items → reuses add_items_to_list() logic
+    """
+    sb = _get_supabase()
+    try:
+        
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail='Only CSV files are supported.')
+
+    
+        contents = await file.read()
+        csv_text = contents.decode('utf-8')
+        reader = csv.DictReader(StringIO(csv_text))
+        rows = [dict(row) for row in reader]
+
+        if not rows:
+            raise HTTPException(status_code=400, detail='CSV file is empty.')
+
+        
+        payload = {
+            "items": rows,
+            "updated_by": updated_by
+        }
+
+        
+        from app.app.routes.lists import add_items_to_list 
+        return add_items_to_list(list_id=list_id, payload=payload)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get('/domain/{domain_id}/worklogs', response_model=List[Dict[str, Any]])
 def get_work_logs_by_domain(domain_id: int, limit: int = 100):

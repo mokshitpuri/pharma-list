@@ -12,7 +12,7 @@ export default function SidebarListBot() {
 
   const handleDomainChange = (newDomain: string) => {
     setDomain(newDomain)
-    clearMessages() // Clear chat when domain changes
+    clearMessages()
   }
 
   const handleSend = async () => {
@@ -23,7 +23,6 @@ export default function SidebarListBot() {
 
   return (
     <div className={`h-full flex flex-col bg-gradient-to-br from-slate-50 to-white border-l border-slate-200 shadow-xl ${open ? 'w-[420px]' : 'w-[70px]'} transition-all duration-300`}>
-      {/* Header */}
       <div className="relative overflow-hidden border-b border-slate-200 flex-shrink-0">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
         <div className={`relative p-5 flex items-center ${open ? 'justify-between' : 'justify-center flex-col gap-3'}`}>
@@ -38,7 +37,6 @@ export default function SidebarListBot() {
               <div>
                 <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                   AI Assistant
-                  {/* <span className="px-2 py-0.5 bg-gradient-to-r from-primary/10 to-secondary/10 text-primary text-xs font-bold rounded-md">BETA</span> */}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">Powered by advanced analytics</p>
               </div>
@@ -56,7 +54,6 @@ export default function SidebarListBot() {
 
       {open && (
         <>
-          {/* Domain Selector */}
           <div className="p-5 border-b border-slate-200 bg-gradient-to-br from-slate-50/50 to-transparent flex-shrink-0">
             <div>
               <label className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
@@ -96,7 +93,6 @@ export default function SidebarListBot() {
             )}
           </div>
 
-          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -111,7 +107,6 @@ export default function SidebarListBot() {
                   Select a data domain above and ask questions about your pharmaceutical data to get instant insights.
                 </p>
                 
-                {/* Suggested Prompts */}
                 {domain && (
                   <div className="mt-6 space-y-2 w-full">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Try asking:</p>
@@ -176,7 +171,6 @@ export default function SidebarListBot() {
             )}
           </div>
 
-          {/* Input Area */}
           <div className="p-5 border-t border-slate-200 bg-gradient-to-br from-slate-50/50 to-transparent flex-shrink-0">
             <div className="flex gap-2 bg-white rounded-2xl border-2 border-slate-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all duration-200 p-1.5 shadow-sm">
               <input 

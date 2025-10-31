@@ -57,7 +57,6 @@ def build_version_content(version):
         formatted = [", ".join([f"{k}: {v}" for k, v in row.items() if v is not None]) for row in rows]
         entries_summary.append(f"Table: {table}\n" + "\n".join(formatted))
 
-    # *** FIX IS HERE: Pre-calculate the Entries Summary content ***
     entries_summary_content = (
         '\n\n'.join(entries_summary) 
         if entries_summary 
@@ -79,7 +78,7 @@ Entries Summary:
     return content.strip()
 
 
-# --- Main Embedding Generator ---
+# Main Embedding Generator 
 def generate_embeddings_for_all_versions():
     versions = safe_fetch("list_versions")
 

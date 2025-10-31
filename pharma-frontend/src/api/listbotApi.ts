@@ -1,7 +1,3 @@
-/**
- * ListBot API - Connected to FastAPI backend for conversational queries
- */
-
 import axiosClient from './axiosClient'
 
 export interface ListBotQueryRequest {
@@ -16,9 +12,6 @@ export interface ListBotQueryResponse {
   sources?: any[]
 }
 
-/**
- * Send a query to the ListBot conversational interface
- */
 export const postListBotQuery = async (data: ListBotQueryRequest): Promise<ListBotQueryResponse> => {
   try {
     const response = await axiosClient.post('/api/query', {

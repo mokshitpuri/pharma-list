@@ -1,9 +1,3 @@
-/**
- * CSV Template Generator for PharmaDB
- * Generates sample CSV files for each list type with proper headers and sample data
- */
-
-// CSV Template definitions matching backend schemas
 export const CSV_TEMPLATES = {
   'Target Lists': {
     headers: ['hcp_id', 'hcp_name', 'specialty', 'territory', 'tier'],
@@ -95,17 +89,11 @@ export const CSV_TEMPLATES = {
   },
 };
 
-/**
- * Convert array data to CSV string
- */
 export function arrayToCSV(headers: string[], data: string[][]): string {
   const rows = [headers, ...data];
   return rows.map(row => row.join(',')).join('\n');
 }
 
-/**
- * Download CSV file to user's computer
- */
 export function downloadCSV(content: string, filename: string): void {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -122,9 +110,6 @@ export function downloadCSV(content: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-/**
- * Generate and download sample CSV for a specific list type
- */
 export function downloadSampleCSV(listType: string): void {
   const template = CSV_TEMPLATES[listType as keyof typeof CSV_TEMPLATES];
   
@@ -137,11 +122,7 @@ export function downloadSampleCSV(listType: string): void {
   downloadCSV(csvContent, template.filename);
 }
 
-/**
- * Get list type from subdomain name
- */
 export function getListTypeFromSubdomain(subdomainName: string): string | null {
-  // Direct mapping of subdomain names to list types
   const mapping: Record<string, string> = {
     'Target Lists': 'Target Lists',
     'Call Lists': 'Call Lists',
